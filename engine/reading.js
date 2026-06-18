@@ -10,23 +10,23 @@ import { pillarsText } from './saju.js';
 
 const has = (a, k) => !!a.indicators.find((i) => i.key === k)?.present;
 
-// 일간(천간)별 쉬운 비유 — 한자를 모르는 사람도 이해할 수 있게
+// 일간(천간)별 쉬운 비유 — 짧고 쉽게
 const ILGAN_EASY = {
-  갑: { img: '곧게 뻗는 큰 나무', desc: '곧고 진취적이며 리더십이 있어요. 한번 정하면 밀고 나가는 우직함이 강점이에요.' },
-  을: { img: '바람에 휘는 풀·덩굴', desc: '부드럽고 유연하지만 끈질겨요. 환경에 잘 적응하고 사람을 편안하게 해요.' },
-  병: { img: '세상을 비추는 태양', desc: '밝고 열정적이며 표현력이 좋아요. 주변을 환하게 만드는 에너지가 있어요.' },
-  정: { img: '어둠을 밝히는 촛불', desc: '따뜻하고 섬세하며 직관이 예민해요. 은근하지만 깊은 빛을 내요.' },
-  무: { img: '듬직한 큰 산', desc: '안정적이고 포용력이 커요. 믿음직해서 사람들이 기대요.' },
-  기: { img: '곡식을 기르는 기름진 흙', desc: '섬세하고 실속 있으며 잘 길러내요. 조용히 자기 것을 가꿔요.' },
-  경: { img: '큰 쇠·도끼', desc: '결단력 있고 강직해요. 불의를 잘 못 참고 추진력이 강해요.' },
-  신: { img: '잘 벼려진 보석·칼', desc: '예리하고 세련됐으며 자존심이 있어요. 완성도를 중시해요.' },
-  임: { img: '넓은 강·바다', desc: '지혜롭고 포용력이 크며 흐름을 읽어요. 생각이 깊고 멀리 봐요.' },
-  계: { img: '촉촉한 빗물·이슬', desc: '섬세한 직관과 감수성이 풍부해요. 조용히 스며들어 적셔요.' },
+  갑: { img: '큰 나무', desc: '곧고 진취적, 리더십이 있어요.' },
+  을: { img: '풀·덩굴', desc: '부드럽고 유연하지만 끈기 있어요.' },
+  병: { img: '태양', desc: '밝고 열정적, 표현을 잘해요.' },
+  정: { img: '촛불', desc: '따뜻하고 섬세, 직관이 좋아요.' },
+  무: { img: '큰 산', desc: '듬직하고 포용력이 커요.' },
+  기: { img: '기름진 흙', desc: '섬세하고 실속 있게 가꿔요.' },
+  경: { img: '쇠·도끼', desc: '결단력 있고 강직해요.' },
+  신: { img: '보석·칼', desc: '예리하고 깔끔, 자존심이 있어요.' },
+  임: { img: '강·바다', desc: '지혜롭고 생각이 깊어요.' },
+  계: { img: '빗물·이슬', desc: '섬세하고 감수성이 풍부해요.' },
 };
-const EL_TRAIT = { 목: '성장과 시작', 화: '열정과 표현', 토: '안정과 신뢰', 금: '결단과 원칙', 수: '지혜와 사색' };
+const EL_TRAIT = { 목: '성장·시작', 화: '열정·표현', 토: '안정·신뢰', 금: '결단·원칙', 수: '지혜·사색' };
 
 /**
- * 쉬운 요약 — 한자·전문용어 없이 한눈에 이해하는 풀이.
+ * 쉬운 요약 — 한 줄씩 짧고 쉽게. (한자·전문용어 최소화)
  * @returns {{headline, lines: string[], chips: string[]}}
  */
 export function buildSimpleSummary(saju, a, luck) {
@@ -36,36 +36,36 @@ export function buildSimpleSummary(saju, a, luck) {
   const strong = a.elements.strong[0];
   const missing = a.elements.missing;
 
-  const headline = `${name}님은 “${saju.ilgan}(${saju.ilganHanja}) ${el}” — ${ig.img} 같은 사람이에요.`;
+  const headline = `${name}님은 “${saju.ilgan} ${el}” — ${ig.img} 같은 사람이에요.`;
   const lines = [];
-  lines.push(`🌱 **타고난 성향** — ${ig.desc}`);
+  lines.push(`🌱 **성향** — ${ig.desc}`);
 
-  let bal = `⚖️ **오행 균형** — ${strong} 기운이 가장 두터워 ‘${EL_TRAIT[strong]}’의 면이 잘 드러나요.`;
-  if (missing.length) bal += ` 다만 ${missing.join('·')} 기운이 비어 있어, 그쪽은 의식적으로 채워가면 균형이 좋아져요.`;
-  else bal += ' 오행이 비교적 고르게 갖춰져 두루 잘 어울려요.';
-  lines.push(bal);
+  const balLine = missing.length
+    ? `${strong}(${EL_TRAIT[strong]}) 기운이 강하고, ${missing.join('·')}은 부족해요.`
+    : `${strong}(${EL_TRAIT[strong]}) 기운이 도드라져요.`;
+  lines.push(`⚖️ **오행** — ${balLine}`);
 
   const sr = a.strength.label;
-  let trait = sr.includes('신강') ? '주관이 뚜렷하고 추진력이 있어, 스스로 정하고 끌고 가는 힘이 강해요.'
-    : sr.includes('신약') ? '섬세하고 조화를 잘 이뤄, 좋은 사람·환경과 함께할 때 더 빛나요.'
-      : '한쪽으로 치우치지 않아 균형 감각이 좋고 상황에 유연하게 맞춰요.';
-  if (a.spiritScore >= 55) trait += ' 직관과 내면을 들여다보는 힘도 발달한 편이에요.';
-  lines.push(`🧭 **나라는 사람** — ${trait}`);
+  let trait = sr.includes('신강') ? '주관이 뚜렷하고 추진력이 강해요.'
+    : sr.includes('신약') ? '섬세하고 사람·환경과 잘 어울려요.'
+      : '균형 감각이 좋고 유연해요.';
+  if (a.spiritScore >= 55) trait += ' 직관도 발달했어요.';
+  lines.push(`🧭 **나** — ${trait}`);
 
   if (luck && luck.daewoon && luck.daewoon.currentIndex >= 0) {
     const cur = luck.daewoon.list[luck.daewoon.currentIndex];
-    lines.push(`📅 **요즘 흐름** — 지금은 ${cur.age}세부터의 ‘${cur.kor}(${cur.hanja})’ 대운을 지나며, ${cur.sipseong}의 기운이 흐르는 시기예요. (참고일 뿐, 정해진 운명은 아니에요.)`);
+    lines.push(`📅 **요즘** — ‘${cur.kor}’ 대운, ${cur.sipseong}의 시기예요. (참고용)`);
   }
 
   const adviceEl = missing[0] || strong;
   const adviceMap = {
-    목: '새로운 시도를 하나 시작해보기', 화: '마음을 말로 꺼내고 사람과 온기 나누기',
-    토: '규칙적인 루틴으로 중심 잡기', 금: '끊을 것을 적어 분명히 매듭짓기', 수: '혼자만의 사색·휴식 시간 갖기',
+    목: '새로운 일 하나 시작하기', 화: '마음을 말로 표현하기',
+    토: '규칙적인 루틴 만들기', 금: '끊을 것 하나 정리하기', 수: '혼자 쉬는 시간 갖기',
   };
-  lines.push(`💡 **오늘의 한 걸음** — ${adviceMap[adviceEl] || '잠시 멈춰 지금의 감정을 적어보기'}.`);
+  lines.push(`💡 **오늘 한 걸음** — ${adviceMap[adviceEl] || '지금 감정 한 줄 적기'}.`);
 
   const chips = [
-    `일간 ${saju.ilgan}·${el}`,
+    `${saju.ilgan}·${el} 일간`,
     `${strong} 강`,
     ...(missing.length ? [`${missing.join('·')} 부족`] : ['오행 균형']),
     a.strength.label.replace(' 경향', ''),

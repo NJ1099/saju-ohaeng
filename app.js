@@ -214,12 +214,6 @@ function renderResult(saju, a, reading, luck, summary) {
       <div class="result-birth">${birthLine}</div>
     </div>
 
-    <div class="summary-card fade-in">
-      <div class="summary-head">${esc(summary.headline)}</div>
-      <div class="summary-chips chips">${summary.chips.map((c) => `<span class="chip on">${esc(c)}</span>`).join('')}</div>
-      <div class="summary-lines">${summary.lines.map((l) => `<p>${mdInline(l)}</p>`).join('')}</div>
-    </div>
-
     <div class="card fade-in">
       <p class="sec-title">사주 원국 · 만세력</p>
       ${pillarsHtml(saju, a)}
@@ -231,6 +225,13 @@ function renderResult(saju, a, reading, luck, summary) {
       ${ohaengHtml(a)}
       <div class="section-gap"></div>
       ${ohaengKpiHtml(a)}
+    </div>
+
+    <div class="summary-card fade-in">
+      <p class="sec-title" style="color:var(--accent-ink); margin-bottom:12px">한눈에 보는 쉬운 풀이</p>
+      <div class="summary-head">${esc(summary.headline)}</div>
+      <div class="summary-chips chips">${summary.chips.map((c) => `<span class="chip on">${esc(c)}</span>`).join('')}</div>
+      <div class="summary-lines">${summary.lines.map((l) => `<p>${mdInline(l)}</p>`).join('')}</div>
     </div>
 
     <div class="card fade-in">
