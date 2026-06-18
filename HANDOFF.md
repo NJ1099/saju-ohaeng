@@ -54,8 +54,11 @@
 - 마크다운 렌더러(app.js `md`)는 중첩 목록 미지원 — 단, 내장 풀이(reading.js)는 중첩 목록을 생성하지 않으므로 무영향.
 - topbar `backdrop-filter`가 콘텐츠 컬럼(540px) 폭에만 적용 — 넓은 데스크탑 좌우 여백은 blur 미적용(저우선·모바일 우선이라 보류).
 
-## 백업 위치
-- 없음(git 이력으로 관리). 첫 커밋 전.
+## 백업 / 배포
+- **GitHub**: https://github.com/NJ1099/saju-ohaeng (독립 저장소, 모노레포와 분리)
+- **배포용 로컬 저장소**: `D:\saju-ohaeng` (saju 사본 + `vercel.json`, git 초기화·커밋·푸시 완료)
+- **배포**: Vercel 연결 예정 (vercel.json = `@vercel/static`, 빌드 없음). `D:\Claude\saju` 가 개발 원본.
+- 주의: 비공개 프로젝트가 많은 `D:\Claude` 모노레포는 절대 공개 푸시 금지 — saju만 별도 저장소.
 
 ## 다음에 시작할 때 체크리스트
 1. 이 파일 먼저 읽기

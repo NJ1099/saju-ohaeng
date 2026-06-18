@@ -3,7 +3,7 @@
 // ============================================================
 import { computeSaju, pillarsText } from './engine/saju.js';
 import { analyze } from './engine/analyze.js';
-import { buildReading } from './engine/reading.js';
+import { buildReading, buildSimpleSummary } from './engine/reading.js';
 import { buildPrompt } from './engine/promptBuilder.js';
 import { leapMonthOf, daysInLunarMonth } from './engine/lunar.js';
 import { computeDaewoon, computeSewoon } from './engine/luck.js';
@@ -11,6 +11,11 @@ import { drawShareCard, canvasToBlob } from './share.js';
 import {
   STEMS, BRANCHES, STEM_ELEMENT, BRANCH_ELEMENT, ELEMENTS, sipseongOf, HIDDEN_STEMS,
 } from './engine/constants.js';
+
+// 카카오톡 공유를 켜려면: https://developers.kakao.com 에서 앱 생성 →
+// JavaScript 키를 아래에 붙여넣고, 앱의 [플랫폼 > Web]에 배포 도메인(예: sajumoya.vercel.app) 등록.
+// 비워두면 카카오톡 버튼은 '링크 복사'로 자동 대체됩니다.
+const KAKAO_JS_KEY = '';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -49,6 +54,45 @@ function init() {
 
   $('#saju-form').addEventListener('submit', onSubmit);
   $('#btn-restart').addEventListener('click', restart);
+  initShareSheet();
+  applyParamsIfAny(); // 공유 링크로 들어오면 자동 입력·계산
+}
+
+/** 세그먼트를 값으로 프로그램 활성화 */
+function setSeg(sel, val) {
+  $$('.seg', $(sel)).forEach((s) => {
+    const on = s.dataset.val === val;
+    s.classList.toggle('active', on);
+    s.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+/** URL 쿼리(공유 링크)가 있으면 폼을 채우고 자동 제출 */
+function applyParamsIfAny() {
+  const p = new URLSearchParams(location.search);
+  if (!p.get('y')) return;
+  $('#in-name').value = p.get('n') || '';
+  state.gender = p.get('g') || '남'; setSeg('#seg-gender', state.gender);
+  state.calendar = p.get('c') || 'solar'; setSeg('#seg-calendar', state.calendar);
+  $('#in-year').value = p.get('y');
+  $('#in-month').value = p.get('mo');
+  refreshLeap();
+  if (p.get('leap') === '1') $('#in-leap').checked = true;
+  refreshDays();
+  $('#in-day').value = p.get('d');
+  const h = p.get('h');
+  if (h !== null && h !== '') {
+    $('#in-notime').checked = false; $('#in-hour').disabled = false; $('#in-min').disabled = false;
+    $('#in-hour').style.opacity = 1; $('#in-min').style.opacity = 1;
+    $('#in-hour').value = h; $('#in-min').value = p.get('mi') || '0';
+  } else {
+    $('#in-notime').checked = true; $('#in-hour').disabled = true; $('#in-min').disabled = true;
+  }
+  $('#in-tst').checked = p.get('tst') !== '0';
+  state.boundary = p.get('b') || '자시'; setSeg('#seg-boundary', state.boundary);
+  const lon = parseFloat(p.get('lon'));
+  if (!isNaN(lon)) { const idx = REGIONS.findIndex((r) => Math.abs(r[1] - lon) < 0.01); if (idx >= 0) $('#in-region').value = idx; }
+  if ($('#saju-form').requestSubmit) $('#saju-form').requestSubmit();
 }
 
 function range(a, b) { return Array.from({ length: b - a + 1 }, (_, i) => a + i); }
@@ -127,9 +171,12 @@ function onSubmit(e) {
     const today = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
     const daewoon = computeDaewoon(saju, today);
     const sewoon = computeSewoon(saju, today.year, 12, today.year);
+    const summary = buildSimpleSummary(saju, a, { daewoon, sewoon });
     state.lastSaju = saju; state.lastReading = reading; state.lastAnalyze = a;
     state.lastLuck = { daewoon, sewoon };
-    renderResult(saju, a, reading, { daewoon, sewoon });
+    state.shareUrl = buildShareUrl(input);
+    state.shareText = `${saju.input.name ? saju.input.name + '님의 ' : '내 '}사주 오행 분석 — ${reading.typeLabel}`;
+    renderResult(saju, a, reading, { daewoon, sewoon }, summary);
   }, 280);
 }
 
@@ -155,17 +202,22 @@ function renderError(msg) {
 }
 
 // ── 결과 렌더링 ───────────────────────────────────────────
-function renderResult(saju, a, reading, luck) {
+function renderResult(saju, a, reading, luck, summary) {
   const root = $('#result-root');
   const name = saju.input.name;
   const birthLine = birthText(saju);
-  const canShare = !!(navigator.canShare && navigator.canShare({ files: [new File([], 'x.png', { type: 'image/png' })] }));
 
   root.innerHTML = `
     <div class="result-head fade-in">
       ${name ? `<div class="result-name">${esc(name)} 님의 사주</div>` : `<div class="result-name">당신의 사주</div>`}
       <div class="result-type">${typeHtml(reading.typeLabel)}</div>
       <div class="result-birth">${birthLine}</div>
+    </div>
+
+    <div class="summary-card fade-in">
+      <div class="summary-head">${esc(summary.headline)}</div>
+      <div class="summary-chips chips">${summary.chips.map((c) => `<span class="chip on">${esc(c)}</span>`).join('')}</div>
+      <div class="summary-lines">${summary.lines.map((l) => `<p>${mdInline(l)}</p>`).join('')}</div>
     </div>
 
     <div class="card fade-in">
@@ -206,19 +258,21 @@ function renderResult(saju, a, reading, luck) {
     <div class="actions fade-in">
       <button class="btn-prompt" id="btn-copy">✦ 이 원국으로 GPT·Claude에 깊이 물어보기 (프롬프트 복사)</button>
       <div class="actions-row">
-        <button class="btn-ghost" id="btn-save">🖼️ 이미지 저장</button>
-        <button class="btn-ghost" id="btn-share"${canShare ? '' : ' style="display:none"'}>↗ 공유</button>
+        <button class="btn-ghost" id="btn-share">↗ 공유하기</button>
+        <button class="btn-ghost" id="btn-again">다시 입력하기</button>
       </div>
-      <button class="btn-ghost" id="btn-again">다시 입력하기</button>
     </div>
     <p class="disclaimer" style="margin-top:14px">사주는 정답이 아니라 방향을 보는 지도입니다.<br/>고통의 가능성도 성장과 실천으로 이어지길 바랍니다.</p>
   `;
 
   $('#btn-copy').addEventListener('click', copyPrompt);
   $('#btn-again').addEventListener('click', restart);
-  $('#btn-save').addEventListener('click', () => exportImage('save'));
-  if (canShare) $('#btn-share').addEventListener('click', () => exportImage('share'));
+  $('#btn-share').addEventListener('click', openShareSheet);
   root.removeAttribute('tabindex');
+}
+
+function mdInline(s) {
+  return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/_(.+?)_/g, '<em>$1</em>');
 }
 
 function daewoonHtml(d) {
@@ -242,26 +296,102 @@ function sewoonHtml(list) {
     </div>`).join('')}</div>`;
 }
 
-// ── 이미지 저장·공유 ──────────────────────────────────────
-async function exportImage(mode) {
-  const btn = mode === 'save' ? $('#btn-save') : $('#btn-share');
-  const orig = btn.textContent; btn.textContent = '이미지 만드는 중…'; btn.disabled = true;
+// ── 공유 ───────────────────────────────────────────────────
+function buildShareUrl(input) {
+  const p = new URLSearchParams();
+  if (input.name) p.set('n', input.name);
+  p.set('g', input.gender); p.set('c', input.calendar);
+  p.set('y', input.year); p.set('mo', input.month); p.set('d', input.day);
+  if (input.hour !== null && input.hour !== undefined) { p.set('h', input.hour); p.set('mi', input.minute || 0); }
+  if (input.isLeapMonth) p.set('leap', '1');
+  p.set('tst', input.options.trueSolarTime ? '1' : '0');
+  p.set('lon', input.options.longitude);
+  p.set('b', input.options.dayBoundary);
+  return `${location.origin}${location.pathname}?${p.toString()}`;
+}
+
+function openShareSheet() {
+  const sheet = $('#share-sheet');
+  // Web Share(파일) 지원 시 '더보기' 노출
+  const native = $('#share-native');
+  native.hidden = !(navigator.share);
+  sheet.hidden = false;
+}
+function closeShareSheet() { $('#share-sheet').hidden = true; }
+
+function initShareSheet() {
+  const sheet = $('#share-sheet');
+  $('#share-close').addEventListener('click', closeShareSheet);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) closeShareSheet(); });
+  $$('.share-opt', sheet).forEach((b) => b.addEventListener('click', () => doShare(b.dataset.share)));
+  if (KAKAO_JS_KEY) loadKakao();
+}
+
+function loadKakao() {
+  if (window.Kakao) return;
+  const s = document.createElement('script');
+  s.src = 'https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js';
+  s.onload = () => { try { window.Kakao.init(KAKAO_JS_KEY); } catch { /* noop */ } };
+  document.head.appendChild(s);
+}
+
+async function doShare(kind) {
+  const url = state.shareUrl || location.href;
+  const text = state.shareText || '사주 오행 분석';
+  switch (kind) {
+    case 'telegram':
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+      break;
+    case 'x':
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank', 'noopener');
+      break;
+    case 'link':
+      await copyText(url); toast('링크를 복사했어요 🔗');
+      break;
+    case 'kakao':
+      if (window.Kakao && window.Kakao.isInitialized && window.Kakao.isInitialized()) {
+        try {
+          window.Kakao.Share.sendDefault({
+            objectType: 'text', text: `${text}\n${url}`,
+            link: { webUrl: url, mobileWebUrl: url },
+          });
+        } catch { await copyText(url); toast('링크를 복사했어요. 카카오톡에 붙여넣어 보내세요 💬'); }
+      } else { await copyText(url); toast('링크를 복사했어요. 카카오톡에 붙여넣어 보내세요 💬'); }
+      break;
+    case 'image':
+      await exportImageSave(); break;
+    case 'more':
+      try { await navigator.share({ title: '내 사주 오행 분석', text, url }); } catch { /* 취소 */ }
+      break;
+  }
+  if (kind !== 'image') closeShareSheet();
+}
+
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); }
+  catch {
+    const ta = document.createElement('textarea'); ta.value = t;
+    ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch { /* noop */ } ta.remove();
+  }
+}
+
+async function exportImageSave() {
+  toast('이미지 만드는 중…');
   try {
     const cv = await drawShareCard(state.lastSaju, state.lastAnalyze);
     const blob = await canvasToBlob(cv);
     const fname = `사주-${state.lastSaju.input.name || '결과'}.png`;
-    if (mode === 'share' && navigator.canShare) {
-      const file = new File([blob], fname, { type: 'image/png' });
-      await navigator.share({ files: [file], title: '내 사주 오행 분석', text: '오행 사주 분석 결과' });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast('이미지를 저장했어요 🖼️');
+    // 모바일 + 파일 공유 지원 시 네이티브 공유(카톡 등에 이미지 직접)
+    if (navigator.canShare && navigator.canShare({ files: [new File([blob], fname, { type: 'image/png' })] })) {
+      try { await navigator.share({ files: [new File([blob], fname, { type: 'image/png' })], title: '내 사주 오행 분석', text: state.shareText }); closeShareSheet(); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
     }
-  } catch (err) {
-    if (err && err.name !== 'AbortError') toast('이미지 생성에 실패했어요. 다시 시도해 주세요.');
-  } finally { btn.textContent = orig; btn.disabled = false; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('이미지를 저장했어요 🖼️'); closeShareSheet();
+  } catch { toast('이미지 생성에 실패했어요. 다시 시도해 주세요.'); }
 }
 
 function birthText(s) {

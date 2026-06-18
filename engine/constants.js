@@ -244,6 +244,15 @@ export const BRANCH_CHUNG = {
   묘: '유', 유: '묘', 진: '술', 술: '진', 사: '해', 해: '사',
 };
 
+/** 한자(천간·지지) → 한글 음독 (예: '壬癸丁' → '임계정', '甲寅' → '갑인') */
+export function hanjaToSound(str) {
+  return [...String(str)].map((ch) => {
+    const s = STEMS_HANJA.indexOf(ch); if (s >= 0) return STEMS[s];
+    const b = BRANCHES_HANJA.indexOf(ch); if (b >= 0) return BRANCHES[b];
+    return ch; // 매핑 안되는 글자는 그대로
+  }).join('');
+}
+
 /** 한글 간지 → 한자 변환 (예: '갑인' → '甲寅') */
 export function korToHanja(kor) {
   if (!kor || kor.length < 2) return kor || '';

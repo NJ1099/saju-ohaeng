@@ -136,7 +136,7 @@ export function analyze(saju) {
   // 5. 사고(辰戌丑未) 발달
   const sagoHit = branches.map((b, i) => ({ b, pos: pillarList[i].pos })).filter((x) => SAGO.includes(x.b));
   indicators.push({
-    key: 'sago', name: '사고(四庫·辰戌丑未) 발달',
+    key: 'sago', name: '사고(四庫·진술축미) 발달',
     present: sagoHit.length >= 2,
     count: sagoHit.length,
     evidence: sagoHit.length
@@ -161,7 +161,7 @@ export function analyze(saju) {
   const specialStems = stems.filter((s) => ['임', '계', '정'].includes(s));
   const specialBranches = branches.filter((b) => SAJEONG.includes(b));
   indicators.push({
-    key: 'special', name: '壬癸丁 · 子午卯酉 발달',
+    key: 'special', name: '임계정(壬癸丁)·자오묘유(子午卯酉) 발달',
     present: specialStems.length > 0 || specialBranches.length >= 2,
     evidence: `천간 중 ${specialStems.length ? specialStems.join('·') : '없음'}`
       + ` / 사정성(子午卯酉) ${specialBranches.length ? specialBranches.join('·') : '없음'}`,
@@ -176,11 +176,11 @@ export function analyze(saju) {
   if (presentKeys.has('sago') && presentKeys.has('chilsang'))
     specialCombos.push('사고 발달 + 칠살/상관 강세 — 내면의 압력이 수행으로 전환되는 구조');
   if (specialBranches.length >= 2 && specialStems.length > 0)
-    specialCombos.push('子午卯酉 발달 + 丁/壬/癸 투출 — 감각의 예민함과 영적 각성');
+    specialCombos.push('자오묘유(子午卯酉) 발달 + 정·임·계(丁壬癸) 투출 — 감각의 예민함과 영적 각성');
   if (presentKeys.has('pyeonin') && (countByElement['수'] >= 3 || groupCount.인성 >= 2))
     specialCombos.push('편인 강세 + 고독한 원국 구조 — 탐구자형 기질');
   if (sagoHit.length >= 2 && specialStems.length > 0)
-    specialCombos.push('사고 다중 + 丁/壬/癸 발달 — 깊은 저장 에너지와 영적 감수성');
+    specialCombos.push('사고 다중 + 정·임·계(丁壬癸) 발달 — 깊은 저장 에너지와 영적 감수성');
   if (presentKeys.has('gongmang') && presentKeys.has('hwagae'))
     specialCombos.push('공망 + 화개 — 세속적 허무감 너머 본질을 향하는 구조');
   if (presentKeys.has('chilsang') && groupCount.관성 + groupCount.식상 >= 4)

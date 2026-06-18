@@ -124,6 +124,23 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<!-- 공유 바텀시트 -->
+<div class="sheet-backdrop" id="share-sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="공유하기">
+    <div class="sheet-grab"></div>
+    <h3 class="sheet-title">공유하기</h3>
+    <div class="share-grid">
+      <button class="share-opt" data-share="kakao"><span class="si" style="background:#FEE500;color:#191600">K</span>카카오톡</button>
+      <button class="share-opt" data-share="telegram"><span class="si" style="background:#229ED9;color:#fff">T</span>텔레그램</button>
+      <button class="share-opt" data-share="x"><span class="si" style="background:#000;color:#fff">𝕏</span>X</button>
+      <button class="share-opt" data-share="link"><span class="si" style="background:#EEF1F4;color:#333D4B">🔗</span>링크 복사</button>
+      <button class="share-opt" data-share="image"><span class="si" style="background:#E8F3FF;color:#1B64DA">🖼️</span>이미지 저장</button>
+      <button class="share-opt" data-share="more" id="share-native" hidden><span class="si" style="background:#EEF1F4;color:#333D4B">↗</span>더보기</button>
+    </div>
+    <button class="sheet-close" id="share-close">닫기</button>
+  </div>
+</div>
+
 <script type="module" src="./app.js"></script>
 </body>
 </html>
