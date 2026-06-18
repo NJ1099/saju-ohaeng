@@ -3,10 +3,11 @@
 // ============================================================
 import { computeSaju, pillarsText } from './engine/saju.js';
 import { analyze } from './engine/analyze.js';
-import { buildReading, buildSimpleSummary } from './engine/reading.js';
+import { buildReading, buildSimpleSummary, buildElementWeakness } from './engine/reading.js';
 import { buildPrompt } from './engine/promptBuilder.js';
 import { leapMonthOf, daysInLunarMonth } from './engine/lunar.js';
 import { computeDaewoon, computeSewoon } from './engine/luck.js';
+import { GLOSSARY, INDICATOR_GLOSS } from './engine/glossary.js';
 import { drawShareCard, canvasToBlob } from './share.js';
 import {
   STEMS, BRANCHES, STEM_ELEMENT, BRANCH_ELEMENT, ELEMENTS, sipseongOf, HIDDEN_STEMS,
@@ -55,7 +56,45 @@ function init() {
   $('#saju-form').addEventListener('submit', onSubmit);
   $('#btn-restart').addEventListener('click', restart);
   initShareSheet();
+  initTermPopover();
+  initScrollTop();
   applyParamsIfAny(); // 공유 링크로 들어오면 자동 입력·계산
+}
+
+// ── 용어 팝오버 ───────────────────────────────────────────
+function initTermPopover() {
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('.term');
+    if (t) { e.preventDefault(); showTerm(t.dataset.term, t); return; }
+    if (!e.target.closest('.tp-card')) hideTerm();
+  });
+  window.addEventListener('scroll', hideTerm, { passive: true });
+  window.addEventListener('resize', hideTerm);
+}
+function showTerm(key, anchor) {
+  const g = GLOSSARY[key]; if (!g) return;
+  const pop = $('#term-pop'); const card = pop.querySelector('.tp-card');
+  pop.querySelector('.tp-title').textContent = g.title;
+  pop.querySelector('.tp-def').textContent = g.def;
+  pop.hidden = false;
+  const margin = 12;
+  const cardW = Math.min(300, window.innerWidth - margin * 2);
+  card.style.width = `${cardW}px`;
+  const r = anchor.getBoundingClientRect();
+  const cardH = card.offsetHeight;
+  let left = r.left + r.width / 2 - cardW / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - cardW - margin));
+  let top = r.bottom + 8;
+  if (top + cardH > window.innerHeight - margin) top = Math.max(margin, r.top - cardH - 8);
+  card.style.left = `${left}px`; card.style.top = `${top}px`;
+}
+function hideTerm() { const p = $('#term-pop'); if (p && !p.hidden) p.hidden = true; }
+
+// ── 맨 위로 ────────────────────────────────────────────────
+function initScrollTop() {
+  const btn = $('#to-top');
+  window.addEventListener('scroll', () => { btn.classList.toggle('show', window.scrollY > 400); }, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 }
 
 /** 세그먼트를 값으로 프로그램 활성화 */
@@ -172,11 +211,12 @@ function onSubmit(e) {
     const daewoon = computeDaewoon(saju, today);
     const sewoon = computeSewoon(saju, today.year, 12, today.year);
     const summary = buildSimpleSummary(saju, a, { daewoon, sewoon });
+    const weakness = buildElementWeakness(a);
     state.lastSaju = saju; state.lastReading = reading; state.lastAnalyze = a;
     state.lastLuck = { daewoon, sewoon };
     state.shareUrl = buildShareUrl(input);
     state.shareText = `${saju.input.name ? saju.input.name + '님의 ' : '내 '}사주 오행 분석 — ${reading.typeLabel}`;
-    renderResult(saju, a, reading, { daewoon, sewoon }, summary);
+    renderResult(saju, a, reading, { daewoon, sewoon }, summary, weakness);
   }, 280);
 }
 
@@ -202,7 +242,7 @@ function renderError(msg) {
 }
 
 // ── 결과 렌더링 ───────────────────────────────────────────
-function renderResult(saju, a, reading, luck, summary) {
+function renderResult(saju, a, reading, luck, summary, weakness) {
   const root = $('#result-root');
   const name = saju.input.name;
   const birthLine = birthText(saju);
@@ -215,13 +255,14 @@ function renderResult(saju, a, reading, luck, summary) {
     </div>
 
     <div class="card fade-in">
-      <p class="sec-title">사주 원국 · 만세력</p>
+      <p class="sec-title">사주 ${termSpan('원국', '원국')} · 만세력</p>
+      <p class="term-hint">밑줄 친 단어를 누르면 <b>뜻 설명</b>이 떠요</p>
       ${pillarsHtml(saju, a)}
       ${corrHtml(saju)}
     </div>
 
     <div class="card fade-in">
-      <p class="sec-title">오행 분포</p>
+      <p class="sec-title">${termSpan('오행', '오행')} 분포</p>
       ${ohaengHtml(a)}
       <div class="section-gap"></div>
       ${ohaengKpiHtml(a)}
@@ -235,7 +276,13 @@ function renderResult(saju, a, reading, luck, summary) {
     </div>
 
     <div class="card fade-in">
-      <p class="sec-title">영성 잠재력 · 7대 지표</p>
+      <p class="sec-title">부족한 기운, 이런 뜻이에요</p>
+      <p class="term-hint">탭하면 자세히 펼쳐져요</p>
+      ${weaknessHtml(weakness)}
+    </div>
+
+    <div class="card fade-in">
+      <p class="sec-title">${termSpan('영성잠재력', '영성 잠재력')} · 7대 지표</p>
       ${gaugeHtml(a)}
       <div class="section-gap"></div>
       ${indicatorsHtml(a)}
@@ -243,10 +290,10 @@ function renderResult(saju, a, reading, luck, summary) {
     </div>
 
     <div class="card fade-in">
-      <p class="sec-title">대운(大運) · 인생 10년 흐름</p>
+      <p class="sec-title">${termSpan('대운', '대운(大運)')} · 인생 10년 흐름</p>
       ${daewoonHtml(luck.daewoon)}
       <div class="section-gap"></div>
-      <p class="sec-title">세운(歲運) · 해마다의 기운</p>
+      <p class="sec-title">${termSpan('세운', '세운(歲運)')} · 해마다의 기운</p>
       ${sewoonHtml(luck.sewoon)}
       <p class="corr-note" style="margin-top:12px">대운수·방향은 ${luck.daewoon.direction}(${luck.daewoon.startAge}세 시작). 대운/세운은 시기를 단정하는 도구가 아니라 흐름의 결을 보는 참고입니다.</p>
     </div>
@@ -260,20 +307,48 @@ function renderResult(saju, a, reading, luck, summary) {
       <button class="btn-prompt" id="btn-copy">✦ 이 원국으로 GPT·Claude에 깊이 물어보기 (프롬프트 복사)</button>
       <div class="actions-row">
         <button class="btn-ghost" id="btn-share">↗ 공유하기</button>
-        <button class="btn-ghost" id="btn-again">다시 입력하기</button>
+        <button class="btn-ghost" id="btn-save">🖼️ 이미지 저장</button>
       </div>
+      <button class="btn-ghost" id="btn-again">다시 입력하기</button>
     </div>
     <p class="disclaimer" style="margin-top:14px">사주는 정답이 아니라 방향을 보는 지도입니다.<br/>고통의 가능성도 성장과 실천으로 이어지길 바랍니다.</p>
   `;
 
   $('#btn-copy').addEventListener('click', copyPrompt);
   $('#btn-again').addEventListener('click', restart);
-  $('#btn-share').addEventListener('click', openShareSheet);
+  $('#btn-share').addEventListener('click', onShareLink);
+  $('#btn-save').addEventListener('click', onShareImage);
   root.removeAttribute('tabindex');
 }
 
 function mdInline(s) {
   return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/_(.+?)_/g, '<em>$1</em>');
+}
+
+/** 클릭하면 설명이 뜨는 용어 */
+function termSpan(key, label) {
+  return GLOSSARY[key] ? `<button type="button" class="term" data-term="${key}">${esc(label)}</button>` : esc(label);
+}
+
+function weaknessHtml(w) {
+  const list = (arr) => `<ul>${arr.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
+  const blocks = w.items.map((d, i) => `
+    <details class="el-detail"${i === 0 ? ' open' : ''}>
+      <summary><span class="el-emoji">${d.emoji}</span> ${d.el}(${d.hanja}) 기운이 부족해요</summary>
+      <div class="el-body">
+        <p class="el-symbol">${d.el}는 <b>${esc(d.symbol)}</b>을 상징해요.</p>
+        <p class="el-sub">이런 경향이 나타날 수 있어요</p>
+        ${list(d.weak)}
+        <p class="el-sub">대신 이런 장점이 있어요 👍</p>
+        ${list(d.merit)}
+        <p class="el-sub">이렇게 채우면 좋아요 🌱</p>
+        ${list(d.remedy)}
+      </div>
+    </details>`).join('');
+  const combined = w.combined.length
+    ? `<div class="el-combined-wrap"><p class="el-sub" style="margin:14px 0 8px">두 기운이 함께 약하면</p>${w.combined.map((c) => `<div class="el-combined">${esc(c)}</div>`).join('')}</div>`
+    : '';
+  return blocks + combined;
 }
 
 function daewoonHtml(d) {
@@ -311,9 +386,19 @@ function buildShareUrl(input) {
   return `${location.origin}${location.pathname}?${p.toString()}`;
 }
 
+// 공유하기 — 모바일은 OS 공유시트로 직행(카톡·텔레그램 등), PC는 자체 시트
+async function onShareLink() {
+  const url = state.shareUrl || location.href;
+  const text = state.shareText || '사주 오행 분석';
+  if (navigator.share) {
+    try { await navigator.share({ title: '내 사주 오행 분석', text, url }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  openShareSheet();
+}
+
 function openShareSheet() {
   const sheet = $('#share-sheet');
-  // Web Share(파일) 지원 시 '더보기' 노출
   const native = $('#share-native');
   native.hidden = !(navigator.share);
   sheet.hidden = false;
@@ -360,7 +445,7 @@ async function doShare(kind) {
       } else { await copyText(url); toast('링크를 복사했어요. 카카오톡에 붙여넣어 보내세요 💬'); }
       break;
     case 'image':
-      await exportImageSave(); break;
+      await onShareImage(); break;
     case 'more':
       try { await navigator.share({ title: '내 사주 오행 분석', text, url }); } catch { /* 취소 */ }
       break;
@@ -377,22 +462,31 @@ async function copyText(t) {
   }
 }
 
-async function exportImageSave() {
-  toast('이미지 만드는 중…');
+// 이미지 — 모바일은 파일 공유(카톡·텔레그램 전송 / 갤러리 저장), PC는 다운로드
+async function onShareImage() {
+  const btn = $('#btn-save');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
+  else toast('이미지 만드는 중…');
   try {
     const cv = await drawShareCard(state.lastSaju, state.lastAnalyze);
     const blob = await canvasToBlob(cv);
     const fname = `사주-${state.lastSaju.input.name || '결과'}.png`;
-    // 모바일 + 파일 공유 지원 시 네이티브 공유(카톡 등에 이미지 직접)
-    if (navigator.canShare && navigator.canShare({ files: [new File([blob], fname, { type: 'image/png' })] })) {
-      try { await navigator.share({ files: [new File([blob], fname, { type: 'image/png' })], title: '내 사주 오행 분석', text: state.shareText }); closeShareSheet(); return; }
+    const file = new File([blob], fname, { type: 'image/png' });
+    closeShareSheet();
+    // 모바일: 파일 공유 → 카톡/텔레그램/사진 저장
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: '내 사주 오행 분석', text: state.shareText }); return; }
       catch (e) { if (e && e.name === 'AbortError') return; }
     }
+    // PC/미지원: 다운로드
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('이미지를 저장했어요 🖼️'); closeShareSheet();
+    const a = document.createElement('a'); a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast('이미지를 저장했어요 🖼️');
   } catch { toast('이미지 생성에 실패했어요. 다시 시도해 주세요.'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = orig; } }
 }
 
 function birthText(s) {
@@ -434,12 +528,12 @@ function pillarsHtml(saju, a) {
 function corrHtml(saju) {
   const c = saju.corrections;
   const parts = [];
-  parts.push(`일간 <b>${saju.ilgan}(${saju.ilganHanja})</b> · 절기 <b>${saju.currentTerm}</b>`);
+  parts.push(`${termSpan('일간', '일간')} <b>${saju.ilgan}(${saju.ilganHanja})</b> · 절기 <b>${saju.currentTerm}</b>`);
   if (c.trueSolarTime && saju.solar.hour !== null) {
-    parts.push(`진태양시 보정 적용 (경도 ${c.longitudeCorrMin > 0 ? '+' : ''}${c.longitudeCorrMin}분, 균시차 ${c.eotMin > 0 ? '+' : ''}${c.eotMin}분 → 보정시각 <b>${c.correctedTime}</b>)`);
+    parts.push(`${termSpan('진태양시', '진태양시')} 보정 적용 (경도 ${c.longitudeCorrMin > 0 ? '+' : ''}${c.longitudeCorrMin}분, 균시차 ${c.eotMin > 0 ? '+' : ''}${c.eotMin}분 → 보정시각 <b>${c.correctedTime}</b>)`);
   }
   if (c.dstApplied) parts.push(`서머타임 적용 시기 (−60분 보정)`);
-  parts.push(`일주 경계: ${c.dayBoundary === '자시' ? '자시(23시)설' : '자정(00시)설'}`);
+  parts.push(`${termSpan('자시', '일주 경계')}: ${c.dayBoundary === '자시' ? '자시(23시)설' : '자정(00시)설'}`);
   return `<div class="corr-note">${parts.join('<br/>')}</div>`;
 }
 
@@ -457,8 +551,8 @@ function ohaengKpiHtml(a) {
   return `<div class="kpi-row">
     <div class="kpi"><div class="kpi-lab">강한 오행</div><div class="kpi-val txt-${a.elements.strong[0]}">${a.elements.strong.join('·')}</div><div class="kpi-sub">기운이 가장 두텁습니다</div></div>
     <div class="kpi"><div class="kpi-lab">${a.elements.missing.length ? '없는 오행' : '약한 오행'}</div><div class="kpi-val">${(a.elements.missing.length ? a.elements.missing : a.elements.weak).join('·') || '—'}</div><div class="kpi-sub">의식적으로 채울 자리</div></div>
-    <div class="kpi"><div class="kpi-lab">신강·신약</div><div class="kpi-val">${a.strength.label.replace(' 경향', '')}</div><div class="kpi-sub">일간 세력 ${a.strength.supportRatio}% (참고)</div></div>
-    <div class="kpi"><div class="kpi-lab">월령 십성</div><div class="kpi-val">${a.sipseong.monthGod}</div><div class="kpi-sub">타고난 기질 방향</div></div>
+    <div class="kpi"><div class="kpi-lab">${termSpan('신강신약', '신강·신약')}</div><div class="kpi-val">${a.strength.label.replace(' 경향', '')}</div><div class="kpi-sub">일간 세력 ${a.strength.supportRatio}% (참고)</div></div>
+    <div class="kpi"><div class="kpi-lab">${termSpan('월령', '월령')} ${termSpan('십성', '십성')}</div><div class="kpi-val">${a.sipseong.monthGod}</div><div class="kpi-sub">타고난 기질 방향</div></div>
   </div>`;
 }
 
@@ -474,7 +568,7 @@ function gaugeHtml(a) {
 function indicatorsHtml(a) {
   return a.indicators.map((i) => `
     <div class="ind-card ${i.present ? 'on' : ''}">
-      <div class="ind-head"><span class="ind-dot"></span>${esc(i.name)}</div>
+      <div class="ind-head"><span class="ind-dot"></span>${termSpan(INDICATOR_GLOSS[i.key], i.name)}</div>
       <p class="ind-evi">${esc(i.evidence)}</p>
       ${i.present ? `<p class="ind-mean">${esc(i.meaning)}</p>` : ''}
     </div>`).join('');
