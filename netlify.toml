@@ -1,0 +1,16 @@
+# 오행 — Netlify 배포 설정 (빌드 없음, 정적 파일 그대로 서빙)
+# 이 파일이 있는 saju/ 폴더만 배포하세요. (상위 D:\Claude 모노레포는 비공개 프로젝트 포함 — 절대 통째로 올리지 말 것)
+[build]
+  publish = "."
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"

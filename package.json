@@ -1,0 +1,11 @@
+{
+  "name": "saju-ohaeng",
+  "version": "0.1.0",
+  "description": "사주 오행 분석 — 만세력 자동변환 + 영성 풀이 (토스풍 웹/모바일 SPA)",
+  "type": "module",
+  "scripts": {
+    "serve": "node server.js",
+    "test": "node tests/manse.test.mjs"
+  },
+  "license": "MIT"
+}
