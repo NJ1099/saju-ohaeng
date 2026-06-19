@@ -7,6 +7,7 @@
 // ============================================================
 
 import { pillarsText } from './saju.js';
+import { SAENG, STEM_HAP, STEMS, STEMS_HANJA, ELEMENTS_HANJA } from './constants.js';
 
 const has = (a, k) => !!a.indicators.find((i) => i.key === k)?.present;
 
@@ -30,6 +31,7 @@ const ELEMENT_DETAIL = {
   목: {
     emoji: '🌳', hanja: '木',
     symbol: '성장·시작·추진력·계획·인정 욕구·인자함',
+    brief: '이 기운이 부족하면 새로 시작하고 곧게 밀어붙이는 추진력이 약하게 느껴질 수 있어요. 대신 욕심내지 않고 유연하게 흐르는 게 장점이에요.',
     weak: ['새 일을 시작하거나 밀어붙이는 추진력이 약하게 느껴질 수 있어요', '의욕·자신감이 떨어질 때가 있어요', '큰 그림이나 장기 계획을 세우기가 막연해요', '곧게 밀고 나가는 뚝심이 부족할 수 있어요', '경쟁에서 먼저 나서기보다 물러서는 편이에요'],
     merit: ['욕심내지 않고 유연해요', '무리하게 밀어붙이지 않아 마찰이 적어요', '주변에 맞춰 잘 조율해요'],
     remedy: ['초록색·식물을 가까이 두기', '아주 작은 새 시도를 자주 만들기', '산책·자연과 가까이하기', '계획을 글로 적어 눈에 보이게 하기'],
@@ -37,6 +39,7 @@ const ELEMENT_DETAIL = {
   화: {
     emoji: '🔥', hanja: '火',
     symbol: '태양·열정·표현력·활력·명예·인간관계',
+    brief: '이 기운이 부족하면 감정을 겉으로 잘 드러내지 않고 주목받는 걸 부담스러워할 수 있어요. 대신 차분하고 이성적으로 상황을 보는 힘이 좋아요.',
     weak: ['감정을 겉으로 잘 표현하지 않아요', '신중하고 차분한 편이에요', '새 일에 뛰어들기 전 많이 생각해요', '주목받는 것을 부담스러워할 수 있어요', '추진력·자신감이 부족하다고 느낄 수 있어요'],
     merit: ['감정적으로 폭발하는 일이 적어요', '객관적이고 이성적이에요', '차분하게 분석하는 능력이 좋아요'],
     remedy: ['밝은 색(빨강·주황) 활용하기', '햇빛 쬐기·야외 활동하기', '발표·SNS 등 자기표현 늘리기', '사람들과 어울리는 자리 만들기'],
@@ -44,6 +47,7 @@ const ELEMENT_DETAIL = {
   토: {
     emoji: '🏔', hanja: '土',
     symbol: '안정감·신뢰·관리능력·현실감각·중재력',
+    brief: '이 기운이 부족하면 마음이 한곳에 정착하기 어렵고 생각이 자주 바뀔 수 있어요. 대신 변화에 빠르게 적응하고 아이디어가 풍부해요.',
     weak: ['생각이 자주 바뀌어요', '한곳에 정착하는 걸 답답하게 느껴요', '계획보다 즉흥적인 선택을 선호해요', '정신적으로 안정감을 찾기 어려울 수 있어요', '돈 관리나 장기 계획에 약할 수 있어요'],
     merit: ['변화에 빠르게 적응해요', '틀에 갇히지 않고 자유로워요', '아이디어가 풍부해요'],
     remedy: ['규칙적인 생활 습관 만들기', '부동산·재무관리 등 현실 분야 공부하기', '노랑·베이지·갈색 계열 활용하기', '등산 등 흙을 접하는 취미 갖기'],
@@ -51,6 +55,7 @@ const ELEMENT_DETAIL = {
   금: {
     emoji: '⚔️', hanja: '金',
     symbol: '결단·원칙·완성·의리·절제·결실',
+    brief: '이 기운이 부족하면 맺고 끊는 결단과 마무리가 더디게 느껴질 수 있어요. 대신 융통성 있고 사람을 모질게 대하지 않는 따뜻함이 있어요.',
     weak: ['결단이나 마무리가 늦어질 수 있어요', '거절하거나 끊어내는 게 어려워요', '원칙·기준이 흐려질 때가 있어요', '맺고 끊는 단호함이 부족할 수 있어요', '디테일·완성도를 챙기기가 버거울 수 있어요'],
     merit: ['융통성 있고 부드러워요', '사람을 모질게 대하지 않아요', '포용력이 커요'],
     remedy: ['끊을 것을 종이에 적어 매듭짓기', '흰색·금속 소품 활용하기', '정리정돈·미니멀 습관 들이기', '운동으로 결단력 기르기'],
@@ -58,6 +63,7 @@ const ELEMENT_DETAIL = {
   수: {
     emoji: '💧', hanja: '水',
     symbol: '지혜·유연함·사색·소통·생명력',
+    brief: '이 기운이 부족하면 깊이 쉬고 사색하는 시간이 부족해 쉽게 지칠 수 있어요. 대신 행동이 빠르고 솔직·명료한 추진력이 있어요.',
     weak: ['깊이 사색하거나 쉬는 시간이 부족해 쉽게 지칠 수 있어요', '유연함보다 경직될 때가 있어요', '속마음을 천천히 들여다보기 어려워요', '임기응변·융통성이 부족하게 느껴질 수 있어요', '쉬어도 마음이 잘 안 쉬어져요'],
     merit: ['추진력 있고 행동이 빨라요', '솔직하고 단순명료해요', '에너지가 활발해요'],
     remedy: ['혼자 쉬는 시간·충분한 수면 갖기', '검정·파랑 계열 활용하기', '물과 가까이하기(목욕·바다·강)', '명상·기록으로 내면 정리하기'],
@@ -89,6 +95,75 @@ export function buildElementWeakness(a) {
     if (lacking.includes(x) && lacking.includes(y) && SAENG_PAIR[x + y]) combined.push(SAENG_PAIR[x + y]);
   }
   return { items, combined: combined.slice(0, 2) };
+}
+
+// ── 잘 맞는 사주(궁합) 콘텐츠 ──────────────────────────────
+// 적대 검증 워크플로(saju-compat-content) 통과본. 명리 근거: 상생(SAENG)·천간합(STEM_HAP).
+// 주의(검증 지적): elementPerson/elementGift = '그 오행이 강한 사람' 렌즈,
+//                 hapFlavorByElement = '천간합이 만들어내는 결과 오행' 렌즈 — 화면에서 분리 표시할 것.
+const COMPAT = {
+  headline: '내게 부족한 기운을 채워 주거나, 천간이 자연스레 합(合)하는 사람과는 결이 잘 어울릴 수 있어요.',
+  elementPerson: {
+    목: '새로 시작하고 키우는 데 거침없는, 곁에 있으면 의욕이 도는 사람',
+    화: '밝고 표현이 풍부해서 곁을 따뜻하게 데워 주는 사람',
+    토: '묵묵하고 한결같아 마음을 놓고 기댈 수 있는 믿음직한 사람',
+    금: '기준이 또렷하고 맺고 끊음이 깔끔해 어수선함을 정리해 주는 사람',
+    수: '생각이 깊고 차분해서 급할 때 한 박자 늦춰 길을 찾아 주는 사람',
+  },
+  elementGift: {
+    목: '주저할 때 첫발을 떼게, 새 시작의 의욕을 북돋아 줘요',
+    화: '가라앉은 마음을 데우고 표현하는 용기를 더해 줘요',
+    토: '들뜨고 흔들릴 때 단단한 땅처럼 안정과 신뢰를 채워 줘요',
+    금: '흐려진 기준을 또렷하게, 미뤄둔 마무리를 짓게 도와줘요',
+    수: '조급할 때 한 박자 쉬어 갈 여유와 지혜를 채워 줘요',
+  },
+  // 천간합이 만들어내는 결과 오행(키) → 그 합의 결. 한자·합 이름은 문자열에 포함(' — '로 분리).
+  hapFlavorByElement: {
+    목: '정임합목(丁壬合木) — 새로 시작하고 함께 자라나는, 생기 도는 어울림이에요',
+    화: '무계합화(戊癸合火) — 서로의 온도를 높여 주는, 따뜻하고 활기찬 어울림이에요',
+    토: '갑기합토(甲己合土) — 서로를 든든히 받쳐 주는, 안정감 있는 어울림이에요',
+    금: '을경합금(乙庚合金) — 서로의 기준을 다듬어 주는, 단단하고 깔끔한 어울림이에요',
+    수: '병신합수(丙辛合水) — 뜨거움이 가라앉아 깊고 잔잔해지는, 지혜가 흐르는 어울림이에요',
+  },
+  disclaimer: '진짜 궁합은 두 사람의 사주를 함께 펼쳐 봐야 정확해요. 여기 내용은 내 원국 한쪽만 보고 짚은 방향 안내일 뿐이니 가볍게 참고해 주세요.',
+  balancedNote: '오행이 비교적 고른 편이라 특정 기운에 크게 기대지 않아도 돼요. 결이 잘 통하거나 서로의 강점이 다른 사람과 두루 잘 어울릴 수 있어요.',
+};
+
+/**
+ * 잘 맞는 사주(궁합) — 오행 보완 + 천간합 인연 + 상생(북돋움) + 가벼운 주의.
+ * 한쪽 원국만으로 본 '방향 안내'(단정 아님).
+ * @returns {{headline, complements, balanced, balancedNote, hap, nurturer, caution, disclaimer}}
+ */
+export function buildCompatibility(saju, a) {
+  const ig = saju.ilgan;
+  const igEl = a.elements.ilganElement;
+
+  // 1) 보완 오행 — 내게 없는(우선) / 약한 오행을 가진 사람이 빈자리를 채워 줌
+  let lacking = a.elements.missing.slice();
+  if (!lacking.length) lacking = a.elements.weak.slice(0, 2);
+  const complements = lacking.slice(0, 3).map((el) => ({
+    el, hanja: ELEMENTS_HANJA[el],
+    person: COMPAT.elementPerson[el], gift: COMPAT.elementGift[el],
+  }));
+  const balanced = complements.length === 0;
+
+  // 2) 천간합 인연 — 일간이 합(合)하는 천간을 일간으로 둔 사람 (STEM_HAP)
+  const [partnerStem, resultEl] = STEM_HAP[ig];
+  const partnerHanja = STEMS_HANJA[STEMS.indexOf(partnerStem)];
+  const flavor = COMPAT.hapFlavorByElement[resultEl].split(' — ');
+  const hap = { partnerStem, partnerHanja, resultEl, label: flavor[0], desc: flavor[1] || flavor[0] };
+
+  // 3) 나를 북돋아 주는 사람 — 일간 오행을 생(生)하는 오행(인성 자리). 보완과 겹치면 생략.
+  const nurturerEl = Object.keys(SAENG).find((k) => SAENG[k] === igEl);
+  const nurturer = (nurturerEl && !lacking.includes(nurturerEl))
+    ? { el: nurturerEl, hanja: ELEMENTS_HANJA[nurturerEl], person: COMPAT.elementPerson[nurturerEl] }
+    : null;
+
+  // 4) 가벼운 주의 — 강한 오행이 서로 같으면 부딪칠 수 있음 (우열 아님)
+  const strong = a.elements.strong[0];
+  const caution = `당신은 ${strong}(${ELEMENTS_HANJA[strong]}) 기운이 강한 편이에요. 비슷하게 ${strong} 기운이 센 사람과는 닮은 만큼 부딪칠 수도 있는데, 우열이 아니라 서로 결을 맞춰 가면 오히려 든든해져요.`;
+
+  return { headline: COMPAT.headline, complements, balanced, balancedNote: COMPAT.balancedNote, hap, nurturer, caution, disclaimer: COMPAT.disclaimer };
 }
 
 /**

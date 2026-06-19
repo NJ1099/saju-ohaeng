@@ -3,7 +3,7 @@
 // ============================================================
 import { computeSaju, pillarsText } from './engine/saju.js';
 import { analyze } from './engine/analyze.js';
-import { buildReading, buildSimpleSummary, buildElementWeakness } from './engine/reading.js';
+import { buildReading, buildSimpleSummary, buildElementWeakness, buildCompatibility } from './engine/reading.js';
 import { buildPrompt } from './engine/promptBuilder.js';
 import { leapMonthOf, daysInLunarMonth } from './engine/lunar.js';
 import { computeDaewoon, computeSewoon } from './engine/luck.js';
@@ -212,11 +212,12 @@ function onSubmit(e) {
     const sewoon = computeSewoon(saju, today.year, 12, today.year);
     const summary = buildSimpleSummary(saju, a, { daewoon, sewoon });
     const weakness = buildElementWeakness(a);
+    const compat = buildCompatibility(saju, a);
     state.lastSaju = saju; state.lastReading = reading; state.lastAnalyze = a;
     state.lastLuck = { daewoon, sewoon };
     state.shareUrl = buildShareUrl(input);
     state.shareText = `${saju.input.name ? saju.input.name + '님의 ' : '내 '}사주 오행 분석 — ${reading.typeLabel}`;
-    renderResult(saju, a, reading, { daewoon, sewoon }, summary, weakness);
+    renderResult(saju, a, reading, { daewoon, sewoon }, summary, weakness, compat);
   }, 280);
 }
 
@@ -242,7 +243,7 @@ function renderError(msg) {
 }
 
 // ── 결과 렌더링 ───────────────────────────────────────────
-function renderResult(saju, a, reading, luck, summary, weakness) {
+function renderResult(saju, a, reading, luck, summary, weakness, compat) {
   const root = $('#result-root');
   const name = saju.input.name;
   const birthLine = birthText(saju);
@@ -277,8 +278,13 @@ function renderResult(saju, a, reading, luck, summary, weakness) {
 
     <div class="card fade-in">
       <p class="sec-title">부족한 기운, 이런 뜻이에요</p>
-      <p class="term-hint">탭하면 자세히 펼쳐져요</p>
+      <p class="term-hint">먼저 <b>뜻</b>을 보고, ‘자세히 보기’로 더 펼쳐 보세요</p>
       ${weaknessHtml(weakness)}
+    </div>
+
+    <div class="card fade-in">
+      <p class="sec-title">어떤 사주와 잘 맞을까</p>
+      ${compatHtml(compat)}
     </div>
 
     <div class="card fade-in">
@@ -332,23 +338,66 @@ function termSpan(key, label) {
 
 function weaknessHtml(w) {
   const list = (arr) => `<ul>${arr.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
-  const blocks = w.items.map((d, i) => `
-    <details class="el-detail"${i === 0 ? ' open' : ''}>
-      <summary><span class="el-emoji">${d.emoji}</span> ${d.el}(${d.hanja}) 기운이 부족해요</summary>
-      <div class="el-body">
-        <p class="el-symbol">${d.el}는 <b>${esc(d.symbol)}</b>을 상징해요.</p>
-        <p class="el-sub">이런 경향이 나타날 수 있어요</p>
-        ${list(d.weak)}
-        <p class="el-sub">대신 이런 장점이 있어요 👍</p>
-        ${list(d.merit)}
-        <p class="el-sub">이렇게 채우면 좋아요 🌱</p>
-        ${list(d.remedy)}
-      </div>
-    </details>`).join('');
+  const blocks = w.items.map((d) => {
+    const essence = String(d.symbol).split('·').slice(0, 3).join('·'); // 핵심 3키워드를 '뜻'으로
+    return `
+    <div class="el-card">
+      <div class="el-card-head"><span class="el-emoji">${d.emoji}</span><b>${d.el}(${d.hanja})</b> 기운이 부족해요</div>
+      <p class="el-meaning"><span class="el-tag">뜻</span>${d.el}${josaEunNeun(d.el)} <b>${esc(essence)}</b>을 상징하는 기운이에요.</p>
+      <p class="el-brief">${esc(d.brief)}</p>
+      <details class="el-more">
+        <summary>자세히 보기</summary>
+        <div class="el-body">
+          <p class="el-sub">이런 경향이 나타날 수 있어요</p>
+          ${list(d.weak)}
+          <p class="el-sub">대신 이런 장점이 있어요 👍</p>
+          ${list(d.merit)}
+          <p class="el-sub">이렇게 채우면 좋아요 🌱</p>
+          ${list(d.remedy)}
+        </div>
+      </details>
+    </div>`;
+  }).join('');
   const combined = w.combined.length
     ? `<div class="el-combined-wrap"><p class="el-sub" style="margin:14px 0 8px">두 기운이 함께 약하면</p>${w.combined.map((c) => `<div class="el-combined">${esc(c)}</div>`).join('')}</div>`
     : '';
   return blocks + combined;
+}
+
+/** 한글 받침 유무로 은/는 조사 선택 (목→은, 화→는 …) */
+function josaEunNeun(word) {
+  const ch = String(word).charCodeAt(String(word).length - 1);
+  if (ch < 0xAC00 || ch > 0xD7A3) return '는';
+  return (ch - 0xAC00) % 28 ? '은' : '는';
+}
+
+// ── 잘 맞는 사주(궁합) — 두 렌즈를 시각적으로 분리: 보완 오행 vs 천간합 ──
+function compatHtml(c) {
+  const lead = `<p class="compat-lead">${esc(c.headline)}</p>`;
+
+  const comp = c.balanced
+    ? `<p class="compat-balanced">${esc(c.balancedNote)}</p>`
+    : `<p class="compat-sub">🤝 내 빈자리를 채워 주는 사람</p>
+       <div class="compat-list">${c.complements.map((x) => `
+         <div class="compat-row">
+           <span class="compat-el el-${x.el}">${x.el}<i>${x.hanja}</i></span>
+           <div class="compat-rt"><b>${esc(x.person)}</b><span>${esc(x.gift)}</span></div>
+         </div>`).join('')}</div>`;
+
+  const hap = `
+    <div class="compat-hap">
+      <div class="compat-hap-top"><span class="compat-hap-badge">💞 ${esc(c.hap.label)}</span><span class="compat-hap-q">천간합(天干合) 인연</span></div>
+      <p class="compat-hap-text">일간이 <b>${esc(c.hap.partnerStem)}(${esc(c.hap.partnerHanja)})</b>인 사람과 만나면, ${esc(c.hap.desc)}</p>
+    </div>`;
+
+  const nur = c.nurturer
+    ? `<p class="compat-note">🌱 나를 북돋아 주는 <b>${esc(c.nurturer.el)}(${esc(c.nurturer.hanja)})</b> 기운이 강한 사람 — ${esc(c.nurturer.person)} — 도 곁에서 기댈 언덕이 되어 줄 수 있어요.</p>`
+    : '';
+
+  const caution = `<p class="compat-note warn">⚖️ ${esc(c.caution)}</p>`;
+  const disc = `<p class="corr-note" style="margin-top:13px">${esc(c.disclaimer)}</p>`;
+
+  return lead + comp + hap + nur + caution + disc;
 }
 
 function daewoonHtml(d) {

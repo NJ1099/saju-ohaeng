@@ -2,10 +2,10 @@
 
 > 다음 세션에서 이어서 작업할 때 가장 먼저 읽어야 하는 문서.
 
-최종 업데이트: 2026-06-18
+최종 업데이트: 2026-06-19
 
 ## 현재 상태 한 줄 요약
-이름·생년월일·시간(양/음력)만 입력하면 **만세력으로 사주 원국을 자동 계산**하고 오행 분포·십성·7대 영성 지표로 분석한 뒤, 프롬프트(`사주풀이 프롬포트.txt`) 구조의 **내장 자동풀이** + **GPT·Claude용 프롬프트 복사**까지 제공하는 토스풍 정적 SPA. 만세력 엔진 73개 단위테스트 전부 통과(절기 분 단위 정확, 음양력·일주·e2e 4기둥·소월 검증 완료). 3차원 적대 검증(엔진·풀이충실도·접근성) 반영 완료.
+이름·생년월일·시간(양/음력)만 입력하면 **만세력으로 사주 원국을 자동 계산**하고 오행·십성·7대 영성지표·대운/세운을 분석, **쉬운 요약 + 부족한 기운 뜻(+자세히 보기) + 어떤 사주와 잘 맞는지(궁합) + 자세한 풀이 + 용어 설명 팝오버**를 보여주고 **GPT·Claude 프롬프트 복사 / 카톡·텔레그램 공유 / 이미지 저장**까지 되는 토스풍 정적 SPA. 만세력 엔진 80개 단위테스트 전부 통과(절기 분 단위 정확, 음양력·일주·e2e 4기둥·소월·대운 검증). 3차원 적대 검증 반영 완료. **GitHub `NJ1099/saju-ohaeng` → Vercel `sajumoya.vercel.app` 배포 완료(자동 재배포).**
 
 ## 지금 동작하는 것
 - **만세력 자동 변환** — 양력/음력(윤달 포함) 입력 → 사주 4기둥. 절기(VSOP87 태양황경)·신월(Meeus 삭) 천문계산 기반.
@@ -13,13 +13,24 @@
 - **자시(子時) 경계 학설 토글** — 정자시(23시, 다수설) / 자정(00시).
 - **분석** — 오행 분포(글자수+지장간 가중%), 십성, 신강약 근사, 7대 영성지표(화개·태극귀인·공망·편인·사고·칠살상관·壬癸丁子午卯酉), 스페셜 조합, 영성점수.
 - **대운·세운** — 양남음녀 순행/역행, 절기 기반 대운수, 대운 타임라인(현재 대운 하이라이트), 세운 12년 표 + 십성. (`engine/luck.js`)
-- **내장 자동풀이** — 프롬프트 7섹션 구조의 적응형 한국어 내러티브.
-- **프롬프트 복사** — 계산된 원국(+대운/세운)을 원본 프롬프트에 채워 클립보드 복사 → GPT·Claude에 붙여넣기.
-- **이미지 저장·공유** — 무의존 canvas 사주 카드(`share.js`) PNG 다운로드 + Web Share(모바일 카톡 등).
-- **UI** — 토스풍 반응형(모바일 우선), 전폭 blur 톱바, 파비콘·PWA 메타, 만세력 4기둥 시각화, 오행 바 차트, 지표 카드, 게이지, 대운/세운.
-- **배포 준비** — `netlify.toml`·`.nojekyll`·`DEPLOY.md` (saju 폴더만 안전 배포; 모노레포 통째 배포 금지 경고 포함).
+- **쉬운 요약 카드** — 일간 비유·오행 균형·성향·요즘 흐름·오늘 한 걸음을 쉬운 말로(오행 분포 바로 아래). (`buildSimpleSummary`)
+- **부족한 기운 뜻 + 자세히 보기** — 오행별 **뜻**(상징)·쉬운 요약을 먼저 보여주고, 경향·장점·보완법은 '자세히 보기'로 접음. (`buildElementWeakness`)
+- **어떤 사주와 잘 맞을까(궁합)** — 부족한 오행을 채워 줄 사람·천간합 인연·나를 북돋는 오행·가벼운 주의·면책. 단정 아닌 방향 안내. (`buildCompatibility`)
+- **내장 자동풀이** — 프롬프트 7섹션 구조의 적응형 한국어 내러티브(자세한 풀이, 하단).
+- **용어 설명 팝오버** — 밑줄+ⓘ 단어 탭 시 작은 설명창. (`engine/glossary.js`)
+- **프롬프트 복사** — 계산된 원국(+대운/세운)을 원본 프롬프트에 채워 클립보드 복사 → GPT·Claude.
+- **공유** — `공유하기`: 모바일 OS 공유시트 직행(카톡·텔레그램)·PC 자체 바텀시트. `이미지 저장`: 모바일 `navigator.share(파일)`(갤러리 저장·앱 전송)·PC 다운로드. **공유 링크에 입력값 인코딩 → 링크로 결과 재현.**
+- **UI** — 토스풍 반응형(모바일 우선), 전폭 blur 톱바, 파비콘·PWA 메타, 한자 음독 병기, **맨 위로 ↑ 버튼**, 만세력 4기둥·오행 차트·지표 카드·게이지·대운/세운.
+- **배포** — GitHub `NJ1099/saju-ohaeng` push → Vercel `sajumoya.vercel.app` 자동 재배포. (`netlify.toml`·`.nojekyll`·`DEPLOY.md`도 포함. 모노레포 통째 배포 금지 — saju만.)
 
-## 최근 라운드에서 한 일 (2026-06-18)
+## 최근 라운드에서 한 일 (2026-06-19)
+### 라운드 5 — 맨위로 버튼 픽스 · 부족한 기운 뜻+자세히보기 · 잘 맞는 사주(궁합)
+1. **[버그픽스] 맨 위로 ↑ 버튼** — 라운드4에서 추가했으나 동작 안 함. 원인: `<button id="to-top" hidden>`의 HTML `hidden` 속성이 UA `display:none`을 걸어 영구 비표시였고, JS는 `.show` 클래스만 토글(opacity)할 뿐 `hidden`을 안 풀었음. → `index.html`에서 `hidden` 제거(CSS `opacity:0; pointer-events:none` 베이스라인이 스크롤 전 숨김을 담당, `.show`가 노출). 우하단 노출·클릭 시 smooth 최상단·최상단서 재숨김 모두 검증.
+2. **[UX] 부족한 기운 — 뜻 먼저 + '자세히 보기'** — 결과가 길어 가독성↓. 각 오행 카드를 ①헤더 ②**뜻**(상징 핵심 3키워드, 파란 뱃지) ③한 줄 쉬운 요약(`brief`) 까지 항상 노출하고, 경향·장점·보완법은 `<details> 자세히 보기`로 접음(기본 접힘). `engine/reading.js`의 `ELEMENT_DETAIL`에 `brief` 추가, `app.js` `weaknessHtml` 재구성, CSS `.el-card`/`.el-more` 신설(구 `.el-detail` 아코디언 대체).
+3. **[신규] 어떤 사주와 잘 맞을까(궁합)** — `engine/reading.js` `buildCompatibility(saju,a)` + `COMPAT` 상수. ①내게 부족한 오행을 가진 사람(보완) ②**천간합 인연**(STEM_HAP: 갑기합토·을경합금·병신합수·정임합목·무계합화) ③나를 생(生)하는 오행이 강한 사람(북돋움, 보완과 겹치면 생략) ④같은 강한 오행끼리의 가벼운 주의 ⑤두 사주를 함께 봐야 한다는 면책. `app.js` `compatHtml`로 **보완 렌즈 vs 천간합 렌즈를 시각적으로 분리** 렌더(검증서가 지적한 오독 위험 회피). CSS `.compat-*` 신설.
+   - **콘텐츠 출처**: 멀티에이전트 워크플로(`saju-compat-content`) — 3개 독립 초안(명리정확/카피/간결 렌즈) → 적대 검증(명리 상생상극·천간합 방향·숙명론/공포/우열 표현 금지) → 병합. 3안 모두 myeongniCorrect·toneSafe 통과(8.5/8.5/9).
+4. **검증**: 만세력 80/80 유지. `tests/verify-features.mjs`(Playwright) 11/11 통과(궁합 카드·자세히보기 토글·맨위로 노출/복귀/재숨김), 콘솔 에러 0.
+
 ### 라운드 1 — 신규 앱 0→1 구축
 1. **리서치 워크플로(wq2fymeyx)** — KASI/uncle.tools/ytliu0 권위 출처에서 절기 시각·음양력 변환쌍·일주 앵커·KST 역사·e2e 검증벡터 수집 → `data/manse-reference.json`.
 2. **만세력 엔진** — `astro.js`(율리우스일·태양황경·ΔT·절기솔버), `lunar.js`(삭·무중치윤 음양력), `saju.js`(4기둥·진태양시·자시경계), `constants.js`(명리 테이블).
@@ -63,17 +74,20 @@
 - topbar `backdrop-filter`가 콘텐츠 컬럼(540px) 폭에만 적용 — 넓은 데스크탑 좌우 여백은 blur 미적용(저우선·모바일 우선이라 보류).
 
 ## 백업 / 배포
-- **GitHub**: https://github.com/NJ1099/saju-ohaeng (독립 저장소, 모노레포와 분리)
-- **배포용 로컬 저장소**: `D:\saju-ohaeng` (saju 사본 + `vercel.json`, git 초기화·커밋·푸시 완료)
-- **배포**: Vercel 연결 예정 (vercel.json = `@vercel/static`, 빌드 없음). `D:\Claude\saju` 가 개발 원본.
+- **GitHub**: https://github.com/NJ1099/saju-ohaeng (독립 저장소, 모노레포와 분리) — 계정 NJ1099
+- **Vercel**: https://sajumoya.vercel.app (GitHub 연결, **main push 시 자동 재배포**). vercel.json = `@vercel/static`(빌드 없음).
+- **개발 원본**: `D:\Claude\saju` (여기서 수정·테스트). **배포용 사본**: `D:\saju-ohaeng` (git 저장소).
+- **배포 절차**: ① `D:\Claude\saju`에서 수정·테스트 → ② 사본 동기화 `robocopy D:\Claude\saju D:\saju-ohaeng /E /XD .git node_modules /XF *.png` → ③ `cd D:\saju-ohaeng; git add -A; git commit; git push origin main` → Vercel 자동 재배포. (git 자격증명은 Windows 자격증명관리자에 저장돼 push 자동 인증됨.)
 - 주의: 비공개 프로젝트가 많은 `D:\Claude` 모노레포는 절대 공개 푸시 금지 — saju만 별도 저장소.
+- **카톡 정식 공유**: `app.js`의 `KAKAO_JS_KEY` 비어 있음 → 카톡 버튼은 링크복사 폴백. 켜려면 카카오 developers JS키 + sajumoya.vercel.app 도메인 등록 후 키 입력.
 
 ## 다음에 시작할 때 체크리스트
 1. 이 파일 먼저 읽기
 2. `node tests/manse.test.mjs` 로 엔진 회귀 확인 (80/80 기대)
 3. `node server.js` → http://localhost:4476/ 로 동작 확인
 4. `node tests/screenshot.mjs` 로 렌더링 회귀 확인(Playwright, 부모 node_modules 사용)
-5. 작업 끝나면 이 HANDOFF.md 업데이트
+5. 배포: 위 "백업/배포"의 배포 절차(동기화 → push)로 Vercel 자동 재배포
+6. 작업 끝나면 이 HANDOFF.md 업데이트
 
 ## 주요 파일 (빠른 참조)
 | 파일 | 역할 |
@@ -85,14 +99,15 @@
 | `engine/saju.js` | **핵심** 4기둥 산출(년주 입춘·월주 절기·일주 JDN·시주 오서둔·진태양시) |
 | `engine/analyze.js` | 오행 분포·십성·7대 영성지표·신강약·영성점수 |
 | `engine/luck.js` | 대운(순행/역행·대운수)·세운 계산 |
-| `engine/reading.js` | 내장 자동풀이(프롬프트 7섹션 적응형 내러티브) |
+| `engine/reading.js` | 내장 자동풀이 + 쉬운 요약(`buildSimpleSummary`) + 부족한 오행 풀이(`buildElementWeakness`) + 잘 맞는 사주 궁합(`buildCompatibility`) |
+| `engine/luck.js` (위) / `engine/glossary.js` | 대운·세운 / 용어 설명 팝오버 사전 |
 | `engine/promptBuilder.js` | 원국(+대운/세운) 채운 LLM 프롬프트 생성 |
 | `share.js` | Canvas 사주 카드 이미지 생성(저장·공유) |
-| `DEPLOY.md` / `netlify.toml` / `.nojekyll` | 배포 가이드·설정 |
+| `vercel.json`(사본) / `DEPLOY.md` / `netlify.toml` / `.nojekyll` | 배포 설정·가이드 |
 | `data/prompt-template.txt` | 원본 프롬프트 본문(브런치 댓글 제외) |
 | `data/manse-reference.json` | 검증 레퍼런스(절기·음양력·일주앵커·e2e·KST역사) |
 | `server.js` | 무의존 정적 서버(포트 4476) |
-| `tests/manse.test.mjs` | 만세력 70개 단위테스트 |
+| `tests/manse.test.mjs` | 만세력 80개 단위테스트(절기·음양력·일주·e2e·소월·대운) |
 | `tests/screenshot.mjs` | Playwright 렌더링 검증 |
 
 ## 핵심 설계 메모
