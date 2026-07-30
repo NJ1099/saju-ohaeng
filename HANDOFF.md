@@ -5,10 +5,12 @@
 최종 업데이트: 2026-07-30
 
 ## ⚠️ 지금 가장 먼저 볼 것
-**라운드 6(명리 이론 계층 + 둘의 궁합)이 로컬에서 완성·검증까지 끝났으나 아직 배포되지 않았다.**
-- GitHub `NJ1099/saju-ohaeng` 최신 커밋은 `b45ef1a`(2026-06-19, 라운드 5)다. 프로덕션 `sajumoya.vercel.app` 에는 이론 계층·궁합이 **없다**.
-- 구 배포 절차에 적힌 `D:\Claude\saju`·`D:\saju-ohaeng` 두 경로는 **더 이상 존재하지 않는다**. 현재 개발 원본은 `E:\AI\saju-ohaeng-main` 이고, 배포하려면 저장소를 새로 클론해야 한다(아래 "백업/배포" 참조).
-- 로컬 검증 상태(2026-07-30 재확인): 단위 353/353 PASS(만세력 80 + 이론·궁합 273), Playwright UI 24/24 PASS, 콘솔 에러 0.
+**라운드 6(명리 이론 계층 + 둘의 궁합) 배포 완료 (2026-07-30).**
+- 라운드 6은 2026-07-29 세션에 코드가 완성됐으나 **문서 갱신·커밋·배포가 안 된 채로 끊겨 있었다.** 2026-07-30 세션에 마무리했다.
+- 배포 저장소 `NJ1099/saju-ohaeng` `a5bcad6` → `sajumoya.vercel.app` 반영 확인. 모노repo `NJ1099/AI` `cb8abd6` 에도 백업 커밋.
+- **경로 변경 주의** — 구 문서의 `D:\Claude\saju`(개발 원본)·`D:\saju-ohaeng`(배포용 사본)은 **둘 다 존재하지 않는다**(D 드라이브 자체가 없음). 현재 개발 원본은 `E:\AI\saju-ohaeng-main`, 배포용 클론은 이번에 새로 만든 **`E:\saju-sync`** 다.
+- 검증 상태(2026-07-30): 단위 353/353 PASS(만세력 80 + 이론·궁합 273), 로컬 Playwright UI 24/24 PASS, **프로덕션 스모크 7/7 PASS**(이론 카드 7블록·격국 표기·궁합 85점·6축 막대·네 기둥 대조표·콘솔 에러 0).
+- **줄바꿈 주의** — 배포 저장소는 **CRLF**, 로컬 원본은 **LF** 다. 그냥 복사하면 전 파일이 diff에 잡혀 커밋이 지저분해진다. 복사 시 `awk '{ printf "%s\r\n", $0 }'` 로 CRLF 변환할 것.
 
 ## 현재 상태 한 줄 요약
 이름·생년월일·시간(양/음력)만 입력하면 **만세력으로 사주 원국을 자동 계산**하고 오행·십성·7대 영성지표·**격국·용신·조후·통근 신강약·십이운성·신살·형충회합**·대운/세운을 분석, **쉬운 요약 + 부족한 기운 뜻(+자세히 보기) + 어떤 사주와 잘 맞는지 + 자세한 풀이 + 용어 설명 팝오버**를 보여주고, **두 사람의 궁합(6축 100점)** 까지 산출하며 **GPT·Claude 프롬프트 복사(단독·궁합 전용 2종) / 카톡·텔레그램 공유 / 이미지 저장**이 되는 토스풍 정적 SPA. 단위테스트 353개 전부 통과. 3차원 적대 검증 반영 완료.
@@ -29,11 +31,11 @@
 - **프롬프트 복사** — 계산된 원국(+대운/세운)을 원본 프롬프트에 채워 클립보드 복사 → GPT·Claude.
 - **공유** — `공유하기`: 모바일 OS 공유시트 직행(카톡·텔레그램)·PC 자체 바텀시트. `이미지 저장`: 모바일 `navigator.share(파일)`(갤러리 저장·앱 전송)·PC 다운로드. **공유 링크에 입력값 인코딩 → 링크로 결과 재현.**
 - **UI** — 토스풍 반응형(모바일 우선), 전폭 blur 톱바, 파비콘·PWA 메타, 한자 음독 병기, **맨 위로 ↑ 버튼**, 만세력 4기둥·오행 차트·지표 카드·게이지·대운/세운.
-- **배포** — GitHub `NJ1099/saju-ohaeng` push → Vercel `sajumoya.vercel.app` 자동 재배포. (`netlify.toml`·`.nojekyll`·`DEPLOY.md`도 포함. 모노레포 통째 배포 금지 — saju만.) **단, 라운드 6은 아직 push 전이라 프로덕션에는 라운드 5까지만 올라가 있다.**
+- **배포** — GitHub `NJ1099/saju-ohaeng` push → Vercel `sajumoya.vercel.app` 자동 재배포. (`netlify.toml`·`.nojekyll`·`DEPLOY.md`도 포함. 모노레포 통째 배포 금지 — saju만.) 라운드 6까지 반영 완료.
 
 ## 최근 라운드에서 한 일
 
-### 라운드 6 — 명리 이론 계층 + 둘의 궁합 (2026-07-29, **미배포**)
+### 라운드 6 — 명리 이론 계층 + 둘의 궁합 (2026-07-29 구현 / 2026-07-30 배포)
 앱이 "오행 분포 + 영성 지표"에 머물러 있어 명리(命理) 본류 판정이 빠져 있던 것을 채우고, 두 사람 궁합을 신규 기능으로 붙인 라운드.
 
 1. **[신규] `engine/theory.js`** — 이론 판정 11개 함수. `spread`(자리별 전개) → `findRoots`(통근) → `judgeStrength`(신강약) → `twelveStages`(십이운성) → `findSinsal`(신살 8종) → `judgeJohu`(조후) → `judgeGyeokguk`(격국) → `judgeYongsin`(용신) → `branchRelation`/`findInternalRelations`(형충회합) → `analyzeTheory`(집계).
@@ -105,13 +107,19 @@
 - **Vercel**: https://sajumoya.vercel.app (GitHub 연결, **main push 시 자동 재배포**). vercel.json = `@vercel/static`(빌드 없음).
 - **⚠️ 경로 변경됨 (2026-07-30 확인)** — 구 문서에 적혀 있던 `D:\Claude\saju`(개발 원본)와 `D:\saju-ohaeng`(배포용 사본)은 **둘 다 존재하지 않는다**. D 드라이브 자체가 없다.
 - **현재 개발 원본**: `E:\AI\saju-ohaeng-main` (여기서 수정·테스트). 이 폴더는 `E:\AI` 모노레포(→ private `NJ1099/AI`)의 하위 폴더지만 **자체 `.git` 이 없다**.
-- **배포 절차** (배포용 클론을 새로 만들어야 함 — seed 프로젝트의 `E:\seed-ledger-sync` 와 같은 패턴):
+- **배포용 클론**: `E:\saju-sync` (2026-07-30에 생성. seed 프로젝트의 `E:\seed-ledger-sync` 와 같은 패턴. 없어졌으면 `git clone https://github.com/NJ1099/saju-ohaeng.git E:/saju-sync` 로 다시 만들면 된다.)
+- **배포 절차**:
   ```bash
-  git clone https://github.com/NJ1099/saju-ohaeng.git E:/saju-sync
-  robocopy E:\AI\saju-ohaeng-main E:\saju-sync /E /XD .git node_modules .claude /XF *.png
-  cd /e/saju-sync && git add -A && git commit -m "..." && git push origin main
+  # ① 실제 내용이 다른 파일만 추린다 (줄바꿈 차이는 무시)
+  cd /e/saju-sync && for f in $(git ls-files); do
+    diff -q --strip-trailing-cr "$f" "/e/AI/saju-ohaeng-main/$f" >/dev/null 2>&1 || echo "$f"
+  done
+  # ② LF → CRLF 변환하며 복사 (배포 저장소가 CRLF라 그냥 복사하면 전 파일이 diff에 잡힌다)
+  awk '{ printf "%s\r\n", $0 }' "$f" > "/e/saju-sync/$f"
+  # ③ 커밋·푸시
+  cd /e/saju-sync && npm test && git add -A && git commit -m "..." && git push origin main
   ```
-  → Vercel 자동 재배포. (git 자격증명은 Windows 자격증명관리자에 저장돼 push 자동 인증됨.)
+  → Vercel 자동 재배포(1분 내). (git 자격증명은 Windows 자격증명관리자에 저장돼 push 자동 인증됨. 단 **클론 직후 `git config user.name/user.email` 설정 필요** — 전역 identity가 없어 첫 커밋이 거부된다.)
 - **복사 전 반드시 역방향 diff 확인** — 배포 저장소에만 있는 변경을 덮어쓰지 않았는지 먼저 볼 것. (seed 프로젝트에서 통째 복사로 프로덕션 기능이 3일간 사라진 사고가 있었다.)
 - 주의: 비공개 프로젝트가 많은 `E:\AI` 모노레포는 절대 공개 푸시 금지 — saju만 별도 저장소.
 - **카톡 정식 공유**: `app.js`의 `KAKAO_JS_KEY` 비어 있음 → 카톡 버튼은 링크복사 폴백. 켜려면 카카오 developers JS키 + sajumoya.vercel.app 도메인 등록 후 키 입력.
