@@ -9,6 +9,7 @@ import {
   ELEMENTS, HIDDEN_STEMS, HIDDEN_WEIGHTS, GONGMANG_BY_SUN, SAMHAP, SAGO,
   SAGO_MEANING, SAJEONG, TAEGEUK, sipseongOf, SIPSEONG,
 } from './constants.js';
+import { analyzeTheory } from './theory.js';
 
 /** 십성 → 분류군 (비겁/식상/재성/관성/인성) */
 const SIPSEONG_GROUP = {
@@ -186,25 +187,11 @@ export function analyze(saju) {
   if (presentKeys.has('chilsang') && groupCount.관성 + groupCount.식상 >= 4)
     specialCombos.push('상관·칠살 강세 + 깊은 내면 갈등 구조 — 압력을 변화의 동력으로');
 
-  // ── 신강/신약 근사 (참고용) ───────────────────────────
-  // 일간 편: 비겁 + 인성, 반대: 식상 + 재성 + 관성 (가중 분포 기반 근사)
-  let supportScore = 0, drainScore = 0;
-  const isSupport = (el) => el === ilganElement || generates(el, ilganElement);
-  pillarList.forEach((x) => {
-    if (x.pos !== '일') { // 일간 자신은 기준점 — 세력 산입에서 제외
-      const sEl = STEM_ELEMENT[x.pillar.stemIdx];
-      if (isSupport(sEl)) supportScore += 1; else drainScore += 1;
-    }
-    const bEl = BRANCH_ELEMENT[x.pillar.branchIdx];
-    const w = x.pos === '월' ? 2 : 1; // 월지 가중
-    if (isSupport(bEl)) supportScore += w; else drainScore += w;
-  });
-  const totalSD = supportScore + drainScore;
-  const supportRatio = supportScore / totalSD;
-  let strength;
-  if (supportRatio >= 0.62) strength = '신강(身强) 경향';
-  else if (supportRatio <= 0.38) strength = '신약(身弱) 경향';
-  else strength = '중화(中和)에 가까움';
+  // ── 신강/신약 — 통근(通根)·투간·월령 기반 정밀 판정 ────
+  // (구 버전은 오행 글자수 근사였음. engine/theory.js judgeStrength 로 대체)
+  const theory = analyzeTheory(saju);
+  const strength = theory.strength.label;
+  const supportRatio = theory.strength.ratio / 100;
 
   // ── 영성 잠재력 점수 (휴리스틱 요약, 0~100) ───────────
   const presentCount = indicators.filter((i) => i.present).length;
@@ -221,14 +208,18 @@ export function analyze(saju) {
     sipseong: { count: sipseongCount, group: groupCount, detail: sipseongDetail, monthGod: monthMainSip },
     indicators,
     specialCombos,
-    strength: { label: strength, supportRatio: Math.round(supportRatio * 100), note: '신강/신약은 통근·투간 등 정밀 판단이 필요하여 참고용입니다(추가 확인 권장).' },
+    strength: {
+      label: strength,
+      supportRatio: Math.round(supportRatio * 100),
+      deukryeong: theory.strength.deukryeong,
+      deukji: theory.strength.deukji,
+      rootCount: theory.strength.rootCount,
+      detail: theory.strength.detail,
+      note: theory.strength.note,
+    },
+    // 이론 계층 — 십이운성·신살·조후·격국·용신·형충회합
+    theory,
     spiritScore,
     presentCount,
   };
-}
-
-/** a 오행이 b 오행을 생(生)하는가 */
-function generates(a, b) {
-  const SAENG = { 목: '화', 화: '토', 토: '금', 금: '수', 수: '목' };
-  return SAENG[a] === b;
 }

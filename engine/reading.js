@@ -186,10 +186,11 @@ export function buildSimpleSummary(saju, a, luck) {
     : `${strong}(${EL_TRAIT[strong]}) 기운이 도드라져요.`;
   lines.push(`⚖️ **오행** — ${balLine}`);
 
+  // 신강/신약 4단계: 신강 · 중화신강 · 중화신약 · 신약 (theory.js judgeStrength)
   const sr = a.strength.label;
-  let trait = sr.includes('신강') ? '주관이 뚜렷하고 추진력이 강해요.'
-    : sr.includes('신약') ? '섬세하고 사람·환경과 잘 어울려요.'
-      : '균형 감각이 좋고 유연해요.';
+  let trait = sr.startsWith('중화') ? '균형 감각이 좋고 유연해요.'
+    : sr.includes('신강') ? '주관이 뚜렷하고 추진력이 강해요.'
+      : '섬세하고 사람·환경과 잘 어울려요.';
   if (a.spiritScore >= 55) trait += ' 직관도 발달했어요.';
   lines.push(`🧭 **나** — ${trait}`);
 
@@ -209,7 +210,7 @@ export function buildSimpleSummary(saju, a, luck) {
     `${saju.ilgan}·${el} 일간`,
     `${strong} 강`,
     ...(missing.length ? [`${missing.join('·')} 부족`] : ['오행 균형']),
-    a.strength.label.replace(' 경향', ''),
+    a.strength.label.replace(/\(.+\)/, ''), // 칩에는 한자 없이
     `영성 ${a.spiritScore}점`,
   ];
   return { headline, lines, chips };

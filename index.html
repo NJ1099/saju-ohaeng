@@ -37,54 +37,127 @@
     <!-- ============ 입력 화면 ============ -->
     <section class="view" id="view-input">
       <div class="hero">
-        <h1 class="hero-title">당신의 사주,<br/>오행으로 읽어드려요</h1>
-        <p class="hero-desc">이름과 생년월일, 태어난 시간만 적으면<br/>만세력으로 사주 원국을 자동 계산해 풀이합니다.</p>
+        <h1 class="hero-title" id="hero-title">당신의 사주,<br/>오행으로 읽어드려요</h1>
+        <p class="hero-desc" id="hero-desc">이름과 생년월일, 태어난 시간만 적으면<br/>만세력으로 사주 원국을 자동 계산해 풀이합니다.</p>
       </div>
 
       <form class="card form" id="saju-form" autocomplete="off">
 
-        <label class="field">
-          <span class="field-label">이름 <span class="opt">선택</span></span>
-          <input class="input" type="text" id="in-name" placeholder="홍길동" maxlength="20" />
-        </label>
-
         <div class="field">
-          <span class="field-label" id="lbl-gender">성별</span>
-          <div class="segmented" id="seg-gender" role="group" aria-labelledby="lbl-gender">
-            <button type="button" class="seg active" data-val="남" aria-pressed="true">남성</button>
-            <button type="button" class="seg" data-val="여" aria-pressed="false">여성</button>
+          <span class="field-label" id="lbl-mode">무엇을 볼까요</span>
+          <div class="segmented" id="seg-mode" role="group" aria-labelledby="lbl-mode">
+            <button type="button" class="seg active" data-val="solo" aria-pressed="true">내 사주</button>
+            <button type="button" class="seg" data-val="couple" aria-pressed="false">둘의 궁합</button>
           </div>
         </div>
 
-        <div class="field">
-          <span class="field-label" id="lbl-calendar">달력</span>
-          <div class="segmented" id="seg-calendar" role="group" aria-labelledby="lbl-calendar">
-            <button type="button" class="seg active" data-val="solar" aria-pressed="true">양력</button>
-            <button type="button" class="seg" data-val="lunar" aria-pressed="false">음력</button>
+        <!-- ── 첫 번째 사람 ── -->
+        <div class="person-block" id="person-1">
+          <div class="person-head" hidden><span class="person-badge">1</span>첫 번째 사람 <em>(나)</em></div>
+
+          <label class="field">
+            <span class="field-label">이름 <span class="opt">선택</span></span>
+            <input class="input" type="text" id="in-name" placeholder="홍길동" maxlength="20" />
+          </label>
+
+          <div class="field">
+            <span class="field-label" id="lbl-gender">성별</span>
+            <div class="segmented" id="seg-gender" role="group" aria-labelledby="lbl-gender">
+              <button type="button" class="seg active" data-val="남" aria-pressed="true">남성</button>
+              <button type="button" class="seg" data-val="여" aria-pressed="false">여성</button>
+            </div>
           </div>
-          <label class="check" id="leap-wrap" hidden>
-            <input type="checkbox" id="in-leap" /> <span>윤달 <em id="leap-hint"></em></span>
+
+          <div class="field">
+            <span class="field-label" id="lbl-calendar">달력</span>
+            <div class="segmented" id="seg-calendar" role="group" aria-labelledby="lbl-calendar">
+              <button type="button" class="seg active" data-val="solar" aria-pressed="true">양력</button>
+              <button type="button" class="seg" data-val="lunar" aria-pressed="false">음력</button>
+            </div>
+            <label class="check" id="leap-wrap" hidden>
+              <input type="checkbox" id="in-leap" /> <span>윤달 <em id="leap-hint"></em></span>
+            </label>
+          </div>
+
+          <div class="field">
+            <span class="field-label" id="lbl-birth">생년월일</span>
+            <div class="row3">
+              <select class="input select" id="in-year" aria-label="출생 연도"></select>
+              <select class="input select" id="in-month" aria-label="출생 월"></select>
+              <select class="input select" id="in-day" aria-label="출생 일"></select>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field-label" id="lbl-time">태어난 시간</span>
+            <div class="row3">
+              <select class="input select" id="in-hour" aria-label="출생 시"></select>
+              <select class="input select" id="in-min" aria-label="출생 분"></select>
+              <span></span>
+            </div>
+            <label class="check">
+              <input type="checkbox" id="in-notime" /> <span>태어난 시간을 몰라요 (시주 제외)</span>
+            </label>
+          </div>
+
+          <label class="field inline">
+            <span class="field-label sm">출생지</span>
+            <select class="input select" id="in-region" aria-label="출생지"></select>
           </label>
         </div>
 
-        <div class="field">
-          <span class="field-label" id="lbl-birth">생년월일</span>
-          <div class="row3">
-            <select class="input select" id="in-year" aria-label="출생 연도"></select>
-            <select class="input select" id="in-month" aria-label="출생 월"></select>
-            <select class="input select" id="in-day" aria-label="출생 일"></select>
-          </div>
-        </div>
+        <!-- ── 두 번째 사람 (궁합 모드) ── -->
+        <div class="person-block partner" id="person-2" hidden>
+          <div class="person-head"><span class="person-badge alt">2</span>두 번째 사람 <em>(상대)</em></div>
 
-        <div class="field">
-          <span class="field-label" id="lbl-time">태어난 시간</span>
-          <div class="row3">
-            <select class="input select" id="in-hour" aria-label="출생 시"></select>
-            <select class="input select" id="in-min" aria-label="출생 분"></select>
-            <span></span>
+          <label class="field">
+            <span class="field-label">이름 <span class="opt">선택</span></span>
+            <input class="input" type="text" id="in-name-2" placeholder="김철수" maxlength="20" />
+          </label>
+
+          <div class="field">
+            <span class="field-label" id="lbl-gender-2">성별</span>
+            <div class="segmented" id="seg-gender-2" role="group" aria-labelledby="lbl-gender-2">
+              <button type="button" class="seg" data-val="남" aria-pressed="false">남성</button>
+              <button type="button" class="seg active" data-val="여" aria-pressed="true">여성</button>
+            </div>
           </div>
-          <label class="check">
-            <input type="checkbox" id="in-notime" /> <span>태어난 시간을 몰라요 (시주 제외)</span>
+
+          <div class="field">
+            <span class="field-label" id="lbl-calendar-2">달력</span>
+            <div class="segmented" id="seg-calendar-2" role="group" aria-labelledby="lbl-calendar-2">
+              <button type="button" class="seg active" data-val="solar" aria-pressed="true">양력</button>
+              <button type="button" class="seg" data-val="lunar" aria-pressed="false">음력</button>
+            </div>
+            <label class="check" id="leap-wrap-2" hidden>
+              <input type="checkbox" id="in-leap-2" /> <span>윤달 <em id="leap-hint-2"></em></span>
+            </label>
+          </div>
+
+          <div class="field">
+            <span class="field-label" id="lbl-birth-2">생년월일</span>
+            <div class="row3">
+              <select class="input select" id="in-year-2" aria-label="상대 출생 연도"></select>
+              <select class="input select" id="in-month-2" aria-label="상대 출생 월"></select>
+              <select class="input select" id="in-day-2" aria-label="상대 출생 일"></select>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field-label" id="lbl-time-2">태어난 시간</span>
+            <div class="row3">
+              <select class="input select" id="in-hour-2" aria-label="상대 출생 시"></select>
+              <select class="input select" id="in-min-2" aria-label="상대 출생 분"></select>
+              <span></span>
+            </div>
+            <label class="check">
+              <input type="checkbox" id="in-notime-2" /> <span>태어난 시간을 몰라요 (시주 제외)</span>
+            </label>
+          </div>
+
+          <label class="field inline">
+            <span class="field-label sm">출생지</span>
+            <select class="input select" id="in-region-2" aria-label="상대 출생지"></select>
           </label>
         </div>
 
@@ -95,10 +168,6 @@
               <span><b>진태양시 보정</b><small>출생지 경도로 실제 태양시 보정 (서울 약 −32분)</small></span>
               <input type="checkbox" id="in-tst" checked class="switch" />
             </label>
-            <label class="field inline">
-              <span class="field-label sm">출생지</span>
-              <select class="input select" id="in-region" aria-label="출생지"></select>
-            </label>
             <div class="field">
               <span class="field-label sm" id="lbl-boundary">일주(日柱) 경계 학설</span>
               <div class="segmented small" id="seg-boundary" role="group" aria-labelledby="lbl-boundary">
@@ -106,11 +175,12 @@
                 <button type="button" class="seg" data-val="자정" aria-pressed="false">자정(00시)</button>
               </div>
             </div>
+            <p class="adv-note">이 두 설정은 두 사람 모두에게 똑같이 적용돼요.</p>
           </div>
         </details>
 
         <button type="submit" class="cta" id="btn-submit">사주 풀이 보기</button>
-        <p class="disclaimer">사주는 정답이 아니라 방향을 보는 지도입니다. 재미와 자기성찰의 참고로 봐 주세요.</p>
+        <p class="disclaimer" id="form-disclaimer">사주는 정답이 아니라 방향을 보는 지도입니다. 재미와 자기성찰의 참고로 봐 주세요.</p>
       </form>
     </section>
 

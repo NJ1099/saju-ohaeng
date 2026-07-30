@@ -4,7 +4,8 @@
 import { computeSaju, pillarsText } from './engine/saju.js';
 import { analyze } from './engine/analyze.js';
 import { buildReading, buildSimpleSummary, buildElementWeakness, buildCompatibility } from './engine/reading.js';
-import { buildPrompt } from './engine/promptBuilder.js';
+import { analyzeCompatibility } from './engine/compat.js';
+import { buildPrompt, buildCompatPrompt } from './engine/promptBuilder.js';
 import { leapMonthOf, daysInLunarMonth } from './engine/lunar.js';
 import { computeDaewoon, computeSewoon } from './engine/luck.js';
 import { GLOSSARY, INDICATOR_GLOSS } from './engine/glossary.js';
@@ -29,29 +30,24 @@ const REGIONS = [
   ['울산', 129.311], ['창원·경남', 128.681], ['제주', 126.531], ['해외/기타(135°E)', 135.0],
 ];
 
-const state = { gender: '남', calendar: 'solar', boundary: '자시', lastSaju: null, lastReading: null, lastAnalyze: null, lastLuck: null };
+const state = {
+  mode: 'solo', // 'solo' | 'couple'
+  boundary: '자시',
+  // 사람별 세그먼트 상태 (1=본인, 2=상대)
+  p: { 1: { gender: '남', calendar: 'solar' }, 2: { gender: '여', calendar: 'solar' } },
+  lastSaju: null, lastReading: null, lastAnalyze: null, lastLuck: null,
+  lastCompat: null, lastPair: null,
+};
+
+/** 사람 번호(1|2)를 붙인 요소 셀렉터. 1번은 기존 ID 유지. */
+const P = (id, k = 1) => `#${id}${k === 2 ? '-2' : ''}`;
 
 // ── 초기화 ────────────────────────────────────────────────
 function init() {
-  fillSelect('#in-year', range(1930, 2027).reverse(), (y) => [`${y}`, `${y}년`], 1995);
-  fillSelect('#in-month', range(1, 12), (m) => [`${m}`, `${m}월`], 1);
-  refreshDays();
-  fillSelect('#in-hour', range(0, 23), (h) => [`${h}`, `${String(h).padStart(2, '0')}시`], 12);
-  fillSelect('#in-min', range(0, 59), (m) => [`${m}`, `${String(m).padStart(2, '0')}분`], 0);
-  fillSelect('#in-region', REGIONS.map((r, i) => i), (i) => [`${i}`, REGIONS[i][0]], 0);
+  for (const k of [1, 2]) initPersonForm(k);
 
-  bindSegment('#seg-gender', (v) => { state.gender = v; });
-  bindSegment('#seg-calendar', (v) => { state.calendar = v; refreshLeap(); refreshDays(); });
+  bindSegment('#seg-mode', setMode);
   bindSegment('#seg-boundary', (v) => { state.boundary = v; });
-
-  $('#in-year').addEventListener('change', () => { refreshLeap(); refreshDays(); });
-  $('#in-month').addEventListener('change', () => { refreshLeap(); refreshDays(); });
-  $('#in-leap').addEventListener('change', refreshDays);
-  $('#in-notime').addEventListener('change', (e) => {
-    const off = e.target.checked;
-    $('#in-hour').disabled = off; $('#in-min').disabled = off;
-    $('#in-hour').style.opacity = off ? .4 : 1; $('#in-min').style.opacity = off ? .4 : 1;
-  });
 
   $('#saju-form').addEventListener('submit', onSubmit);
   $('#btn-restart').addEventListener('click', restart);
@@ -59,6 +55,47 @@ function init() {
   initTermPopover();
   initScrollTop();
   applyParamsIfAny(); // 공유 링크로 들어오면 자동 입력·계산
+}
+
+/** 한 사람 분량의 입력 컨트롤을 채우고 이벤트를 연결한다. */
+function initPersonForm(k) {
+  fillSelect(P('in-year', k), range(1930, 2027).reverse(), (y) => [`${y}`, `${y}년`], 1995);
+  fillSelect(P('in-month', k), range(1, 12), (m) => [`${m}`, `${m}월`], 1);
+  refreshDays(k);
+  fillSelect(P('in-hour', k), range(0, 23), (h) => [`${h}`, `${String(h).padStart(2, '0')}시`], 12);
+  fillSelect(P('in-min', k), range(0, 59), (m) => [`${m}`, `${String(m).padStart(2, '0')}분`], 0);
+  fillSelect(P('in-region', k), REGIONS.map((r, i) => i), (i) => [`${i}`, REGIONS[i][0]], 0);
+
+  bindSegment(P('seg-gender', k), (v) => { state.p[k].gender = v; });
+  bindSegment(P('seg-calendar', k), (v) => { state.p[k].calendar = v; refreshLeap(k); refreshDays(k); });
+
+  $(P('in-year', k)).addEventListener('change', () => { refreshLeap(k); refreshDays(k); });
+  $(P('in-month', k)).addEventListener('change', () => { refreshLeap(k); refreshDays(k); });
+  $(P('in-leap', k)).addEventListener('change', () => refreshDays(k));
+  $(P('in-notime', k)).addEventListener('change', (e) => {
+    const off = e.target.checked;
+    for (const sel of [P('in-hour', k), P('in-min', k)]) {
+      $(sel).disabled = off; $(sel).style.opacity = off ? .4 : 1;
+    }
+  });
+}
+
+/** 모드 전환 — 내 사주 / 둘의 궁합 */
+function setMode(v) {
+  state.mode = v;
+  const couple = v === 'couple';
+  $('#person-2').hidden = !couple;
+  $('#person-1 .person-head').hidden = !couple;
+  $('#btn-submit').textContent = couple ? '궁합 보기' : '사주 풀이 보기';
+  $('#hero-title').innerHTML = couple
+    ? '두 사람의 사주,<br/>어떻게 어울릴까요'
+    : '당신의 사주,<br/>오행으로 읽어드려요';
+  $('#hero-desc').innerHTML = couple
+    ? '두 분의 생년월일시를 넣으면 일간·일지·오행·조후까지<br/>함께 펼쳐 궁합의 결을 읽어드립니다.'
+    : '이름과 생년월일, 태어난 시간만 적으면<br/>만세력으로 사주 원국을 자동 계산해 풀이합니다.';
+  $('#form-disclaimer').textContent = couple
+    ? '궁합은 관계를 정해 주는 판정이 아니라, 서로의 결을 이해하는 지도예요.'
+    : '사주는 정답이 아니라 방향을 보는 지도입니다. 재미와 자기성찰의 참고로 봐 주세요.';
 }
 
 // ── 용어 팝오버 ───────────────────────────────────────────
@@ -106,31 +143,50 @@ function setSeg(sel, val) {
   });
 }
 
+/** 공유 링크 파라미터 키 — 2번 사람은 접미사 '2' */
+const K = (base, k) => (k === 2 ? `${base}2` : base);
+
+/** URL 쿼리(공유 링크)로 한 사람 분량의 폼을 복원 */
+function fillPersonFromParams(p, k) {
+  $(P('in-name', k)).value = p.get(K('n', k)) || '';
+  state.p[k].gender = p.get(K('g', k)) || (k === 1 ? '남' : '여');
+  setSeg(P('seg-gender', k), state.p[k].gender);
+  state.p[k].calendar = p.get(K('c', k)) || 'solar';
+  setSeg(P('seg-calendar', k), state.p[k].calendar);
+  $(P('in-year', k)).value = p.get(K('y', k));
+  $(P('in-month', k)).value = p.get(K('mo', k));
+  refreshLeap(k);
+  if (p.get(K('leap', k)) === '1') $(P('in-leap', k)).checked = true;
+  refreshDays(k);
+  $(P('in-day', k)).value = p.get(K('d', k));
+  const h = p.get(K('h', k));
+  const notime = $(P('in-notime', k)), hh = $(P('in-hour', k)), mm = $(P('in-min', k));
+  if (h !== null && h !== '') {
+    notime.checked = false; hh.disabled = false; mm.disabled = false;
+    hh.style.opacity = 1; mm.style.opacity = 1;
+    hh.value = h; mm.value = p.get(K('mi', k)) || '0';
+  } else {
+    notime.checked = true; hh.disabled = true; mm.disabled = true;
+    hh.style.opacity = .4; mm.style.opacity = .4;
+  }
+  const lon = parseFloat(p.get(K('lon', k)));
+  if (!isNaN(lon)) {
+    const idx = REGIONS.findIndex((r) => Math.abs(r[1] - lon) < 0.01);
+    if (idx >= 0) $(P('in-region', k)).value = idx;
+  }
+}
+
 /** URL 쿼리(공유 링크)가 있으면 폼을 채우고 자동 제출 */
 function applyParamsIfAny() {
   const p = new URLSearchParams(location.search);
   if (!p.get('y')) return;
-  $('#in-name').value = p.get('n') || '';
-  state.gender = p.get('g') || '남'; setSeg('#seg-gender', state.gender);
-  state.calendar = p.get('c') || 'solar'; setSeg('#seg-calendar', state.calendar);
-  $('#in-year').value = p.get('y');
-  $('#in-month').value = p.get('mo');
-  refreshLeap();
-  if (p.get('leap') === '1') $('#in-leap').checked = true;
-  refreshDays();
-  $('#in-day').value = p.get('d');
-  const h = p.get('h');
-  if (h !== null && h !== '') {
-    $('#in-notime').checked = false; $('#in-hour').disabled = false; $('#in-min').disabled = false;
-    $('#in-hour').style.opacity = 1; $('#in-min').style.opacity = 1;
-    $('#in-hour').value = h; $('#in-min').value = p.get('mi') || '0';
-  } else {
-    $('#in-notime').checked = true; $('#in-hour').disabled = true; $('#in-min').disabled = true;
-  }
+  const couple = p.get('m') === 'c' && !!p.get('y2');
+  setMode(couple ? 'couple' : 'solo');
+  setSeg('#seg-mode', couple ? 'couple' : 'solo');
+  fillPersonFromParams(p, 1);
+  if (couple) fillPersonFromParams(p, 2);
   $('#in-tst').checked = p.get('tst') !== '0';
   state.boundary = p.get('b') || '자시'; setSeg('#seg-boundary', state.boundary);
-  const lon = parseFloat(p.get('lon'));
-  if (!isNaN(lon)) { const idx = REGIONS.findIndex((r) => Math.abs(r[1] - lon) < 0.01); if (idx >= 0) $('#in-region').value = idx; }
   if ($('#saju-form').requestSubmit) $('#saju-form').requestSubmit();
 }
 
@@ -146,24 +202,24 @@ function fillSelect(sel, items, fmt, def) {
   }
 }
 function daysInMonth(y, m) { return [31, (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]; }
-function refreshDays() {
-  const y = +$('#in-year').value || 1995, m = +$('#in-month').value || 1;
-  const cur = +$('#in-day')?.value || 1;
+function refreshDays(k = 1) {
+  const y = +$(P('in-year', k)).value || 1995, m = +$(P('in-month', k)).value || 1;
+  const cur = +$(P('in-day', k))?.value || 1;
   let max;
-  if (state.calendar === 'lunar') {
-    try { max = daysInLunarMonth(y, m, $('#in-leap').checked); } catch { max = 30; }
+  if (state.p[k].calendar === 'lunar') {
+    try { max = daysInLunarMonth(y, m, $(P('in-leap', k)).checked); } catch { max = 30; }
     if (max !== 29 && max !== 30) max = 30; // 안전망
   } else max = daysInMonth(y, m);
-  fillSelect('#in-day', range(1, max), (d) => [`${d}`, `${d}일`], Math.min(cur, max));
+  fillSelect(P('in-day', k), range(1, max), (d) => [`${d}`, `${d}일`], Math.min(cur, max));
 }
-function refreshLeap() {
-  const wrap = $('#leap-wrap');
-  if (state.calendar !== 'lunar') { wrap.hidden = true; $('#in-leap').checked = false; return; }
-  const y = +$('#in-year').value, m = +$('#in-month').value;
+function refreshLeap(k = 1) {
+  const wrap = $(P('leap-wrap', k));
+  if (state.p[k].calendar !== 'lunar') { wrap.hidden = true; $(P('in-leap', k)).checked = false; return; }
+  const y = +$(P('in-year', k)).value, m = +$(P('in-month', k)).value;
   let leap = 0;
   try { leap = leapMonthOf(y); } catch { leap = 0; }
-  if (leap === m) { wrap.hidden = false; $('#leap-hint').textContent = `(${y}년은 윤${leap}월이 있어요)`; }
-  else { wrap.hidden = true; $('#in-leap').checked = false; }
+  if (leap === m) { wrap.hidden = false; $(P('leap-hint', k)).textContent = `(${y}년은 윤${leap}월이 있어요)`; }
+  else { wrap.hidden = true; $(P('in-leap', k)).checked = false; }
 }
 function bindSegment(sel, cb) {
   const segs = $$('.seg', $(sel));
@@ -174,18 +230,18 @@ function bindSegment(sel, cb) {
 }
 
 // ── 제출 ──────────────────────────────────────────────────
-function onSubmit(e) {
-  e.preventDefault();
-  const notime = $('#in-notime').checked;
-  const regionIdx = +$('#in-region').value;
-  const input = {
-    name: $('#in-name').value.trim(),
-    gender: state.gender,
-    calendar: state.calendar,
-    isLeapMonth: $('#in-leap').checked,
-    year: +$('#in-year').value, month: +$('#in-month').value, day: +$('#in-day').value,
-    hour: notime ? null : +$('#in-hour').value,
-    minute: notime ? null : +$('#in-min').value,
+/** 폼에서 한 사람 분량의 computeSaju 입력을 읽는다. */
+function readPersonInput(k) {
+  const notime = $(P('in-notime', k)).checked;
+  const regionIdx = +$(P('in-region', k)).value;
+  return {
+    name: $(P('in-name', k)).value.trim(),
+    gender: state.p[k].gender,
+    calendar: state.p[k].calendar,
+    isLeapMonth: $(P('in-leap', k)).checked,
+    year: +$(P('in-year', k)).value, month: +$(P('in-month', k)).value, day: +$(P('in-day', k)).value,
+    hour: notime ? null : +$(P('in-hour', k)).value,
+    minute: notime ? null : +$(P('in-min', k)).value,
     options: {
       trueSolarTime: $('#in-tst').checked,
       longitude: REGIONS[regionIdx][1],
@@ -194,31 +250,60 @@ function onSubmit(e) {
       dayBoundary: state.boundary,
     },
   };
+}
+
+function onSubmit(e) {
+  e.preventDefault();
+  const couple = state.mode === 'couple';
+  const inputs = couple ? [readPersonInput(1), readPersonInput(2)] : [readPersonInput(1)];
 
   showResultView();
-  $('#result-root').innerHTML = `<div class="loading"><div class="spinner"></div><p>만세력으로 사주를 계산하는 중…</p></div>`;
+  $('#result-root').innerHTML = `<div class="loading"><div class="spinner"></div><p>${couple ? '두 사주를 만세력으로 계산하는 중…' : '만세력으로 사주를 계산하는 중…'}</p></div>`;
 
-  setTimeout(() => {
+  setTimeout(() => { (couple ? runCouple : runSolo)(inputs); }, 280);
+}
+
+function runSolo([input]) {
+  let saju;
+  try { saju = computeSaju(input); }
+  catch (err) { return renderError(`계산 중 오류가 발생했습니다: ${err.message}`); }
+  if (saju.error) return renderError(saju.error);
+  const a = analyze(saju);
+  const reading = buildReading(saju, a);
+  saju._typeLabel = reading.typeLabel; // 공유 카드용
+  const now = new Date();
+  const today = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
+  const daewoon = computeDaewoon(saju, today);
+  const sewoon = computeSewoon(saju, today.year, 12, today.year);
+  const summary = buildSimpleSummary(saju, a, { daewoon, sewoon });
+  const weakness = buildElementWeakness(a);
+  const compat = buildCompatibility(saju, a);
+  state.lastSaju = saju; state.lastReading = reading; state.lastAnalyze = a;
+  state.lastLuck = { daewoon, sewoon }; state.lastCompat = null; state.lastPair = null;
+  state.shareUrl = buildShareUrl([input], 'solo');
+  state.shareText = `${saju.input.name ? saju.input.name + '님의 ' : '내 '}사주 오행 분석 — ${reading.typeLabel}`;
+  renderResult(saju, a, reading, { daewoon, sewoon }, summary, weakness, compat);
+}
+
+function runCouple(inputs) {
+  const pair = [];
+  for (let i = 0; i < 2; i++) {
     let saju;
-    try { saju = computeSaju(input); }
-    catch (err) { return renderError(`계산 중 오류가 발생했습니다: ${err.message}`); }
-    if (saju.error) return renderError(saju.error);
-    const a = analyze(saju);
-    const reading = buildReading(saju, a);
-    saju._typeLabel = reading.typeLabel; // 공유 카드용
-    const now = new Date();
-    const today = { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
-    const daewoon = computeDaewoon(saju, today);
-    const sewoon = computeSewoon(saju, today.year, 12, today.year);
-    const summary = buildSimpleSummary(saju, a, { daewoon, sewoon });
-    const weakness = buildElementWeakness(a);
-    const compat = buildCompatibility(saju, a);
-    state.lastSaju = saju; state.lastReading = reading; state.lastAnalyze = a;
-    state.lastLuck = { daewoon, sewoon };
-    state.shareUrl = buildShareUrl(input);
-    state.shareText = `${saju.input.name ? saju.input.name + '님의 ' : '내 '}사주 오행 분석 — ${reading.typeLabel}`;
-    renderResult(saju, a, reading, { daewoon, sewoon }, summary, weakness, compat);
-  }, 280);
+    try { saju = computeSaju(inputs[i]); }
+    catch (err) { return renderError(`${i === 0 ? '첫 번째' : '두 번째'} 사주 계산 중 오류가 발생했습니다: ${err.message}`); }
+    if (saju.error) return renderError(`${i === 0 ? '첫 번째' : '두 번째'} 사람 — ${saju.error}`);
+    pair.push({ saju, a: analyze(saju) });
+  }
+  let compat;
+  try { compat = analyzeCompatibility(pair[0], pair[1]); }
+  catch (err) { return renderError(`궁합 분석 중 오류가 발생했습니다: ${err.message}`); }
+
+  state.lastPair = pair; state.lastCompat = compat;
+  state.lastSaju = pair[0].saju; state.lastAnalyze = pair[0].a;
+  state.lastReading = null; state.lastLuck = null;
+  state.shareUrl = buildShareUrl(inputs, 'couple');
+  state.shareText = `${compat.names.a} × ${compat.names.b} 사주 궁합 — ${compat.score}점 · ${compat.grade.label}`;
+  renderCouple(compat, pair);
 }
 
 function showResultView() {
@@ -288,6 +373,12 @@ function renderResult(saju, a, reading, luck, summary, weakness, compat) {
     </div>
 
     <div class="card fade-in">
+      <p class="sec-title">사주 깊이 보기 — ${termSpan('격국', '격국')}·${termSpan('용신', '용신')}·${termSpan('신살', '신살')}</p>
+      <p class="term-hint">명리에서 원국을 한 단계 더 들여다볼 때 쓰는 기준들이에요</p>
+      ${theoryHtml(a)}
+    </div>
+
+    <div class="card fade-in">
       <p class="sec-title">${termSpan('영성잠재력', '영성 잠재력')} · 7대 지표</p>
       ${gaugeHtml(a)}
       <div class="section-gap"></div>
@@ -325,6 +416,181 @@ function renderResult(saju, a, reading, luck, summary, weakness, compat) {
   $('#btn-share').addEventListener('click', onShareLink);
   $('#btn-save').addEventListener('click', onShareImage);
   root.removeAttribute('tabindex');
+}
+
+// ── 궁합 결과 렌더링 ──────────────────────────────────────
+function renderCouple(c, pair) {
+  const root = $('#result-root');
+  const [A, B] = pair;
+
+  root.innerHTML = `
+    <div class="result-head fade-in">
+      <div class="result-name">${esc(c.names.a)} <span class="x-mark">×</span> ${esc(c.names.b)}</div>
+      <div class="result-type"><b>${esc(c.grade.label)}</b></div>
+      <div class="result-birth">${esc(coupleBirthLine(A.saju))} &nbsp;·&nbsp; ${esc(coupleBirthLine(B.saju))}</div>
+    </div>
+
+    <div class="card fade-in">
+      ${compatScoreHtml(c)}
+      <div class="section-gap"></div>
+      ${compatBarsHtml(c)}
+    </div>
+
+    <div class="card fade-in">
+      <p class="sec-title">두 사람의 ${termSpan('원국', '원국')}</p>
+      ${twoPillarsHtml(A, B, c.names)}
+    </div>
+
+    <div class="card fade-in">
+      <p class="sec-title">서로에게 어떤 사람일까</p>
+      ${lensHtml(c)}
+    </div>
+
+    <div class="card fade-in">
+      <p class="sec-title">항목별로 자세히</p>
+      <p class="term-hint">배점이 큰 <b>일간·일지</b>가 궁합의 뼈대예요</p>
+      ${c.axes.map(axisHtml).join('')}
+    </div>
+
+    <div class="card fade-in">
+      <p class="sec-title">네 기둥 대조표</p>
+      <p class="term-hint">같은 자리끼리 어떤 관계를 맺는지 한눈에 봐요</p>
+      ${matrixHtml(c, c.names)}
+    </div>
+
+    <div class="card fade-in">
+      <p class="sec-title">정리하면</p>
+      ${summaryListHtml('💚 잘 맞는 자리', c.strengths, 'good')}
+      ${summaryListHtml('🌗 결이 다른 자리', c.mixed, 'mixed')}
+      ${summaryListHtml('⚖️ 조율이 필요한 자리', c.cautions, 'tense')}
+      <p class="el-sub" style="margin:16px 0 8px">🌱 오늘부터 해 볼 것</p>
+      <ul class="advice-list">${c.advice.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      <p class="corr-note" style="margin-top:14px">${esc(c.disclaimer)}</p>
+    </div>
+
+    <div class="actions fade-in">
+      <button class="btn-prompt" id="btn-copy">✦ 두 원국으로 GPT·Claude에 궁합 물어보기 (프롬프트 복사)</button>
+      <div class="actions-row">
+        <button class="btn-ghost" id="btn-share">↗ 공유하기</button>
+      </div>
+      <button class="btn-ghost" id="btn-again">다시 입력하기</button>
+    </div>
+    <p class="disclaimer" style="margin-top:14px">궁합은 두 사람을 판정하는 점수가 아니라,<br/>서로를 이해하기 위한 지도입니다.</p>
+  `;
+
+  $('#btn-copy').addEventListener('click', copyCompatPrompt);
+  $('#btn-again').addEventListener('click', restart);
+  $('#btn-share').addEventListener('click', onShareLink);
+  root.removeAttribute('tabindex');
+}
+
+function coupleBirthLine(s) {
+  const sol = s.solar;
+  const t = sol.hour === null ? '시간 미상' : `${String(sol.hour).padStart(2, '0')}:${String(sol.minute).padStart(2, '0')}`;
+  return `${sol.year}.${String(sol.month).padStart(2, '0')}.${String(sol.day).padStart(2, '0')} ${t}`;
+}
+
+function compatScoreHtml(c) {
+  return `<div class="cscore">
+    <div class="cscore-ring" style="--p:${c.score}"><span>${c.score}</span><i>점</i></div>
+    <div class="cscore-txt">
+      <div class="cscore-grade">${c.grade.emoji} <b>${esc(c.grade.label)}</b></div>
+      <p>${esc(c.grade.desc)}</p>
+    </div>
+  </div>`;
+}
+
+function compatBarsHtml(c) {
+  return `<div class="cbars">${c.axes.map((ax) => {
+    const pct = Math.round((ax.score / ax.weight) * 100);
+    return `<div class="cbar-row">
+      <span class="cbar-lab">${esc(ax.title.split(' — ')[0])}</span>
+      <span class="cbar"><i class="tone-${ax.tone}" style="width:${pct}%"></i></span>
+      <span class="cbar-val">${ax.score}<em>/${ax.weight}</em></span>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/** 두 사람 원국을 나란히 (기둥별 간지 + 일간 강조) */
+function twoPillarsHtml(A, B, names) {
+  const one = (P2, name, cls) => {
+    const p = P2.saju.pillars;
+    const cells = [['년', p.year], ['월', p.month], ['일', p.day], ['시', p.hour]].map(([lab, pil]) => {
+      if (!pil) return `<div class="tp-cell"><span class="tp-lab">${lab}</span><span class="tp-gz muted">미상</span></div>`;
+      const sEl = STEM_ELEMENT[pil.stemIdx], bEl = BRANCH_ELEMENT[pil.branchIdx];
+      return `<div class="tp-cell ${lab === '일' ? 'me' : ''}">
+        <span class="tp-lab">${lab}</span>
+        <span class="tp-gz"><b class="txt-${sEl}">${pil.hanja[0]}</b><b class="txt-${bEl}">${pil.hanja[1]}</b></span>
+        <span class="tp-kor">${esc(pil.kor)}</span>
+      </div>`;
+    }).join('');
+    const a = P2.a;
+    return `<div class="tp-person ${cls}">
+      <div class="tp-name">${esc(name)} <em>${esc(P2.saju.ilgan)}(${esc(P2.saju.ilganHanja)}) · ${esc(a.elements.ilganElement)} 일간</em></div>
+      <div class="tp-row">${cells}</div>
+      <div class="tp-meta">
+        <span>${esc(a.strength.label)}</span>
+        <span>${esc(a.theory.gyeokguk.name)}</span>
+        <span>${a.elements.missing.length ? `${esc(a.elements.missing.join('·'))} 부족` : '오행 고름'}</span>
+      </div>
+    </div>`;
+  };
+  return `<div class="two-pillars">${one(A, names.a, 'p1')}${one(B, names.b, 'p2')}</div>`;
+}
+
+function lensHtml(c) {
+  const card = (from, to, l, cls) => `
+    <div class="lens-card ${cls}">
+      <div class="lens-top">${esc(from)}에게 <b>${esc(to)}</b>는</div>
+      <div class="lens-tag">“${esc(l.tag)}”<span class="lens-sip">${esc(l.sipseong)}</span></div>
+      <p class="lens-desc">${esc(l.desc)}</p>
+    </div>`;
+  return `<div class="lens-wrap">
+    ${card(c.names.a, c.names.b, c.lens.aSees, 'l1')}
+    ${card(c.names.b, c.names.a, c.lens.bSees, 'l2')}
+  </div>
+  <p class="corr-note" style="margin-top:12px">상대의 ${termSpan('일간', '일간')}이 내 일간 기준으로 어떤 ${termSpan('십성', '십성')}인지 본 거예요. 역할이 서로 다르게 보이는 건 자연스러운 일이에요.</p>`;
+}
+
+function axisHtml(ax) {
+  const pct = Math.round((ax.score / ax.weight) * 100);
+  return `<div class="axis-card tone-${ax.tone}">
+    <div class="axis-head">
+      <span class="axis-title">${esc(ax.title)}</span>
+      <span class="axis-score">${ax.score}<em>/${ax.weight}</em></span>
+    </div>
+    <div class="axis-meter"><i class="tone-${ax.tone}" style="width:${pct}%"></i></div>
+    <p class="axis-headline">${esc(ax.headline)}</p>
+    <ul class="axis-detail">${ax.detail.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>
+    <p class="axis-basis">근거 · ${esc(ax.basis)}</p>
+    ${ax.note ? `<p class="axis-basis">${esc(ax.note)}</p>` : ''}
+  </div>`;
+}
+
+function matrixHtml(c, names) {
+  return `<div class="cmatrix">
+    <div class="cm-head"><span></span><span>${esc(names.a)}</span><span>${esc(names.b)}</span><span>관계</span></div>
+    ${c.matrix.map((m) => {
+    if (m.unknown) {
+      return `<div class="cm-row"><span class="cm-pos">${m.pos}주</span><span class="cm-gz muted">—</span><span class="cm-gz muted">—</span><span class="cm-rel muted">시간 미상</span></div>`;
+    }
+    const rels = m.rels.length
+      ? m.rels.map((r) => `<b class="rel-${r.tone}">${esc(r.kind)}</b>`).join(' ')
+      : '<span class="muted">—</span>';
+    return `<div class="cm-row">
+        <span class="cm-pos">${m.pos}주<em>${esc(m.meaning)}</em></span>
+        <span class="cm-gz">${esc(m.a.hanja)}<i>${esc(m.a.kor)}</i></span>
+        <span class="cm-gz">${esc(m.b.hanja)}<i>${esc(m.b.kor)}</i></span>
+        <span class="cm-rel">${rels}</span>
+      </div>`;
+  }).join('')}
+  </div>`;
+}
+
+function summaryListHtml(title, items, cls) {
+  if (!items.length) return '';
+  return `<p class="el-sub" style="margin:14px 0 8px">${title}</p>
+    <ul class="sum-list ${cls}">${items.map((x) => `<li><b>${esc(x.title.split(' — ')[0])}</b> ${esc(x.line)}</li>`).join('')}</ul>`;
 }
 
 function mdInline(s) {
@@ -400,6 +666,63 @@ function compatHtml(c) {
   return lead + comp + hap + nur + caution + disc;
 }
 
+// ── 사주 깊이 보기 (격국·용신·조후·통근·십이운성·신살) ──────
+function theoryHtml(a) {
+  const t = a.theory;
+  const el = (e) => `<span class="txt-${e}">${e}(${esc({ 목: '木', 화: '火', 토: '土', 금: '金', 수: '水' }[e])})</span>`;
+  const sinsal = t.sinsal.filter((s) => s.present);
+
+  const gyeok = `<div class="th-block">
+    <div class="th-head"><span class="th-key">${termSpan('격국', '격국(格局)')}</span><b>${esc(t.gyeokguk.name)}</b></div>
+    <p class="th-desc">${esc(t.gyeokguk.desc)}</p>
+    <p class="th-basis">${esc(t.gyeokguk.basis)} · ${esc(t.gyeokguk.note)}</p>
+  </div>`;
+
+  const yong = `<div class="th-block">
+    <div class="th-head"><span class="th-key">${termSpan('용신', '용신(用神) 후보')}</span><b>${t.yongsin.primary.map(el).join(' · ')}</b></div>
+    <p class="th-desc">${esc(t.yongsin.reason)}</p>
+    ${t.yongsin.johuFirst ? `<p class="th-desc">${esc(t.johu.summary)}</p>` : ''}
+    <p class="th-basis">덜 필요한 기운 ${t.yongsin.avoid.map((e) => e).join('·')} · ${esc(t.yongsin.note)}</p>
+  </div>`;
+
+  const johu = `<div class="th-block">
+    <div class="th-head"><span class="th-key">${termSpan('조후', '조후(調候)')}</span><b>${esc(t.johu.tempLabel)} · ${esc(t.johu.humidLabel)}</b></div>
+    <p class="th-desc">${esc(t.johu.summary)}</p>
+  </div>`;
+
+  const root = `<div class="th-block">
+    <div class="th-head"><span class="th-key">${termSpan('통근', '통근(通根)')}</span><b>${esc(a.strength.label)}</b></div>
+    <ul class="th-list">${a.strength.detail.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>
+    <p class="th-basis">일간 세력 ${a.strength.supportRatio}% · 뿌리 ${a.strength.rootCount}곳 · ${esc(a.strength.note)}</p>
+  </div>`;
+
+  const stages = `<div class="th-block">
+    <div class="th-head"><span class="th-key">${termSpan('십이운성', '십이운성(十二運星)')}</span></div>
+    <div class="unseong-row">${t.stages.map((s) => `
+      <div class="us-cell"><span class="us-pos">${esc(s.pos)}지 ${esc(s.branch)}</span><b>${esc(s.unseong)}</b></div>`).join('')}</div>
+    <p class="th-basis">일간이 각 지지에서 갖는 기세의 단계예요. 좋고 나쁨이 아니라 에너지의 국면을 봅니다.</p>
+  </div>`;
+
+  const sinsalBlock = `<div class="th-block">
+    <div class="th-head"><span class="th-key">${termSpan('신살', '신살(神殺)')}</span><b>${sinsal.length ? `${sinsal.length}개 성립` : '두드러진 신살 없음'}</b></div>
+    ${sinsal.length ? `<div class="sinsal-wrap">${sinsal.map((s) => `
+      <div class="sinsal-card">
+        <div class="sinsal-name">${esc(s.name)}<em>${esc(s.hanja)}</em>${s.where.length ? `<span>${esc(s.where.join('·'))}</span>` : ''}</div>
+        <p>${esc(s.meaning)}</p>
+      </div>`).join('')}</div>`
+    : '<p class="th-desc">뚜렷하게 성립하는 신살이 없어요. 신살이 없다고 부족한 사주는 아니에요 — 특정 색이 덜 칠해졌을 뿐이에요.</p>'}
+    <p class="th-basis">신살은 유파마다 기준이 조금씩 달라 참고로 봐 주세요.</p>
+  </div>`;
+
+  const rels = t.relations.length ? `<div class="th-block">
+    <div class="th-head"><span class="th-key">${termSpan('형충회합', '형충회합(刑沖會合)')}</span><b>${t.relations.length}건</b></div>
+    <div class="rel-chips">${t.relations.map((r) => `<span class="rel-chip rel-${r.tone}">${esc(r.label)}<em>${esc(r.from)}·${esc(r.to)}</em></span>`).join('')}</div>
+    <p class="th-basis">원국 안 글자끼리 맺는 관계예요. 합(合)은 묶이고, 충·형은 흔들어 변화를 만들어요.</p>
+  </div>` : '';
+
+  return gyeok + yong + johu + root + stages + sinsalBlock + rels;
+}
+
 function daewoonHtml(d) {
   return `<div class="daewoon" role="list">${d.list.map((x, i) => {
     const cur = i === d.currentIndex;
@@ -422,16 +745,21 @@ function sewoonHtml(list) {
 }
 
 // ── 공유 ───────────────────────────────────────────────────
-function buildShareUrl(input) {
+function buildShareUrl(inputs, mode = 'solo') {
   const p = new URLSearchParams();
-  if (input.name) p.set('n', input.name);
-  p.set('g', input.gender); p.set('c', input.calendar);
-  p.set('y', input.year); p.set('mo', input.month); p.set('d', input.day);
-  if (input.hour !== null && input.hour !== undefined) { p.set('h', input.hour); p.set('mi', input.minute || 0); }
-  if (input.isLeapMonth) p.set('leap', '1');
-  p.set('tst', input.options.trueSolarTime ? '1' : '0');
-  p.set('lon', input.options.longitude);
-  p.set('b', input.options.dayBoundary);
+  inputs.forEach((input, i) => {
+    const k = i + 1;
+    if (input.name) p.set(K('n', k), input.name);
+    p.set(K('g', k), input.gender); p.set(K('c', k), input.calendar);
+    p.set(K('y', k), input.year); p.set(K('mo', k), input.month); p.set(K('d', k), input.day);
+    if (input.hour !== null && input.hour !== undefined) { p.set(K('h', k), input.hour); p.set(K('mi', k), input.minute || 0); }
+    if (input.isLeapMonth) p.set(K('leap', k), '1');
+    p.set(K('lon', k), input.options.longitude);
+  });
+  // 계산 방식은 두 사람 공통
+  p.set('tst', inputs[0].options.trueSolarTime ? '1' : '0');
+  p.set('b', inputs[0].options.dayBoundary);
+  if (mode === 'couple') p.set('m', 'c');
   return `${location.origin}${location.pathname}?${p.toString()}`;
 }
 
@@ -513,6 +841,8 @@ async function copyText(t) {
 
 // 이미지 — 모바일은 파일 공유(카톡·텔레그램 전송 / 갤러리 저장), PC는 다운로드
 async function onShareImage() {
+  // 궁합 결과는 두 사람 카드 렌더러가 없어 링크 공유로 안내한다.
+  if (state.lastCompat) { toast('궁합 결과는 링크로 공유해 주세요 🔗'); return; }
   const btn = $('#btn-save');
   const orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
@@ -600,7 +930,7 @@ function ohaengKpiHtml(a) {
   return `<div class="kpi-row">
     <div class="kpi"><div class="kpi-lab">강한 오행</div><div class="kpi-val txt-${a.elements.strong[0]}">${a.elements.strong.join('·')}</div><div class="kpi-sub">기운이 가장 두텁습니다</div></div>
     <div class="kpi"><div class="kpi-lab">${a.elements.missing.length ? '없는 오행' : '약한 오행'}</div><div class="kpi-val">${(a.elements.missing.length ? a.elements.missing : a.elements.weak).join('·') || '—'}</div><div class="kpi-sub">의식적으로 채울 자리</div></div>
-    <div class="kpi"><div class="kpi-lab">${termSpan('신강신약', '신강·신약')}</div><div class="kpi-val">${a.strength.label.replace(' 경향', '')}</div><div class="kpi-sub">일간 세력 ${a.strength.supportRatio}% (참고)</div></div>
+    <div class="kpi"><div class="kpi-lab">${termSpan('신강신약', '신강·신약')}</div><div class="kpi-val">${a.strength.label.replace(/\(.+\)/, '')}</div><div class="kpi-sub">일간 세력 ${a.strength.supportRatio}% (참고)</div></div>
     <div class="kpi"><div class="kpi-lab">${termSpan('월령', '월령')} ${termSpan('십성', '십성')}</div><div class="kpi-val">${a.sipseong.monthGod}</div><div class="kpi-sub">타고난 기질 방향</div></div>
   </div>`;
 }
@@ -648,6 +978,33 @@ async function copyPrompt() {
     fallbackCopy();
   }
 }
+/** 궁합 프롬프트 복사 */
+async function copyCompatPrompt() {
+  const btn = $('#btn-copy');
+  const orig = '✦ 두 원국으로 GPT·Claude에 궁합 물어보기 (프롬프트 복사)';
+  let full;
+  try {
+    const res = await fetch('./data/compat-prompt-template.txt');
+    if (!res.ok) throw new Error('template');
+    full = buildCompatPrompt(state.lastPair[0].saju, state.lastPair[1].saju, await res.text(), state.lastCompat);
+  } catch {
+    toast('프롬프트 파일을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(full);
+    toast('궁합 프롬프트를 복사했어요! GPT·Claude에 붙여넣어 보세요 📋');
+    btn.textContent = '✓ 복사됨 — GPT·Claude에 붙여넣기';
+    setTimeout(() => { btn.textContent = orig; }, 2600);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = full; ta.style.cssText = 'position:fixed;top:10%;left:5%;width:90%;height:70%;z-index:200;font-size:12px;padding:12px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('궁합 프롬프트를 복사했어요 📋'); } catch { toast('아래 텍스트를 길게 눌러 복사하세요'); }
+    setTimeout(() => ta.remove(), 4000);
+  }
+}
+
 async function fallbackCopy() {
   let full;
   try {
