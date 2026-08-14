@@ -618,3 +618,95 @@ button { font-family: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .cbar i, .axis-meter i { transition: none; }
 }
+
+/* ============================================================
+ *  라우트 셸 + 메뉴 (라운드 7 — 사주 / 타로 두 갈래)
+ * ============================================================ */
+.route[hidden] { display: none; }
+
+/* 상단바 왼쪽 뒤로가기 — 브랜드 앞에 붙는다 */
+.brand-home {
+  width: 32px; height: 32px; border-radius: 10px;
+  font-size: 17px; line-height: 1; margin-right: 2px;
+}
+.brand-home[hidden] { display: none; }
+
+/* ── 메뉴: 전체 화면 두 타일 ── */
+.menu {
+  /* 상단바(약 57px)를 뺀 나머지를 꽉 채운다 */
+  min-height: calc(100dvh - 57px);
+  display: flex; flex-direction: column; justify-content: center;
+  gap: 22px; padding: 24px 0 40px;
+}
+.menu-head { text-align: center; padding: 0 6px; }
+.menu-title {
+  font-size: 26px; font-weight: 800; letter-spacing: -.03em;
+  margin: 0 0 8px; line-height: 1.3;
+}
+.menu-desc { font-size: 14px; color: var(--ink-3); margin: 0; line-height: 1.6; }
+
+.menu-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+
+.menu-tile {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  border: none; border-radius: var(--r-xl);
+  padding: 26px 22px 22px;
+  text-align: left;
+  transition: transform .18s cubic-bezier(.16,1,.3,1), box-shadow .18s ease;
+}
+.menu-tile:active { transform: scale(.985); }
+
+/* 사주 타일 — 라이트(사주 라우트의 테마를 예고) */
+.menu-tile.saju {
+  background: var(--surface); color: var(--ink);
+  box-shadow: var(--shadow-md);
+}
+.menu-tile.saju:hover { box-shadow: var(--shadow-lg); }
+.menu-tile.saju .mt-mark {
+  width: 42px; height: 42px; border-radius: 13px;
+  display: grid; place-items: center; margin-bottom: 6px;
+  background: var(--ink); color: #fff; font-size: 21px; font-weight: 800;
+}
+.menu-tile.saju .mt-go { color: var(--accent-2); }
+
+/* 타로 타일 — 딥블랙(타로 라우트의 테마를 예고) */
+.menu-tile.tarot {
+  background: #0B0B10; color: #F4F1E8;
+  box-shadow: 0 14px 40px rgba(11,11,16,.28);
+}
+.menu-tile.tarot .mt-desc { color: #A9A395; }
+.menu-tile.tarot .mt-go { color: #E8B84B; }
+
+/* 카드 세 장이 부채꼴로 겹친 미니 마크 */
+.mt-fan { position: relative; display: block; width: 52px; height: 42px; margin-bottom: 6px; }
+.mt-fan i {
+  position: absolute; left: 14px; top: 2px;
+  width: 24px; height: 36px; border-radius: 4px;
+  background: linear-gradient(160deg, #2A2740, #14131F);
+  border: 1px solid rgba(232,184,75,.55);
+  transform-origin: 50% 100%;
+}
+.mt-fan i:nth-child(1) { transform: rotate(-20deg) translateX(-3px); }
+.mt-fan i:nth-child(3) { transform: rotate(20deg) translateX(3px); }
+.mt-fan i:nth-child(2) { box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+
+.mt-name { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.mt-desc { font-size: 13.5px; line-height: 1.6; color: var(--ink-3); font-weight: 500; }
+.mt-go { font-size: 13px; font-weight: 700; margin-top: 8px; }
+.mt-go::after { content: ' →'; }
+
+.menu-foot {
+  text-align: center; font-size: 12.5px; color: var(--ink-4);
+  margin: 4px 0 0; line-height: 1.6;
+}
+
+@media (min-width: 620px) {
+  .menu-grid { grid-template-columns: 1fr 1fr; }
+  .menu-tile { min-height: 232px; justify-content: flex-start; }
+  .menu-title { font-size: 30px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-tile { transition: none; }
+  .menu-tile:active { transform: none; }
+}

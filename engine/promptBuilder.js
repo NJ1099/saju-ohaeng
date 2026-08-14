@@ -110,3 +110,52 @@ export function buildPillarsOnly(saju) {
     `시주: ${t.hour}`,
   ].join('\n');
 }
+
+// ============================================================
+//  타로 (라운드 7)
+// ============================================================
+
+/**
+ * 뽑은 3장 + 주제를 타로 프롬프트 템플릿에 채운다.
+ * @param {string} templateText data/tarot-prompt-template.txt 내용
+ * @param {object} reading engine/tarot.js readSpread() 결과
+ * @returns {string} 전체 프롬프트 (템플릿 + 뽑힌 카드 입력)
+ */
+export function buildTarotPrompt(templateText, reading) {
+  const { topic, cards, summary } = reading;
+
+  const lines = cards.map((c, i) => {
+    const ori = c.reversed ? '역방향' : '정방향';
+    const suit = c.card.suit === 'major' ? '메이저 아르카나' : c.card.suitLabel;
+    return [
+      `${i + 1}. [${c.position.label}] ${c.card.name} (${c.card.en}) — ${ori}`,
+      `   · 자리의 뜻: ${c.position.hint}`,
+      `   · 계열: ${suit}${c.card.element ? ` · 원소 ${c.card.element}` : ''}`,
+      `   · 키워드: ${c.keywords.join(', ')}`,
+    ].join('\n');
+  });
+
+  const meta = [
+    `· 메이저 아르카나 ${summary.majorCount}장 / 역방향 ${summary.reversedCount}장`,
+    summary.dominantSuit ? `· 수트 쏠림: ${cards.find((c) => c.card.suit === summary.dominantSuit).card.suitLabel}` : null,
+  ].filter(Boolean);
+
+  const input = [
+    '',
+    '# 입력 (앱이 라이더-웨이트 78장에서 무작위로 뽑은 결과)',
+    '',
+    `상담 주제: ${topic.label} — "${topic.question}"`,
+    `보는 렌즈: ${topic.lens}`,
+    '',
+    '뽑힌 카드 3장:',
+    ...lines,
+    '',
+    '스프레드 전체 관찰:',
+    ...meta,
+    '',
+    '위 세 장을 기준으로, 위 출력 형식(1~5)에 따라 타로 리딩 결과를 작성해 주세요.',
+    '카드를 바꾸거나 새로 뽑지 말고 위에 주어진 3장만 사용하세요.',
+  ].join('\n');
+
+  return `${templateText.trim()}\n${input}\n`;
+}

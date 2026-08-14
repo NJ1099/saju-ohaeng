@@ -1,0 +1,116 @@
+{
+  "_meta": {
+    "note": "9개 주제와 각 주제의 3자리 스프레드 정의. 자리 뜻은 주제마다 다르다.",
+    "positionCount": 3
+  },
+  "topics": [
+    {
+      "key": "love",
+      "label": "연애운",
+      "short": "연애",
+      "question": "지금 내 연애는 어떤 결을 지나고 있을까",
+      "lens": "마음의 온도와 두 사람 사이의 거리",
+      "positions": [
+        { "key": "self", "label": "내 마음", "hint": "지금 내가 품고 있는 진짜 감정" },
+        { "key": "other", "label": "상대의 마음", "hint": "상대 쪽에서 흐르고 있는 기운" },
+        { "key": "flow", "label": "두 사람의 흐름", "hint": "관계가 향하고 있는 방향" }
+      ]
+    },
+    {
+      "key": "future",
+      "label": "미래",
+      "short": "미래",
+      "question": "앞으로 나는 어디로 가고 있을까",
+      "lens": "지금의 자리에서 도달점까지의 궤적",
+      "positions": [
+        { "key": "now", "label": "지금 서 있는 자리", "hint": "현재 상황의 본질" },
+        { "key": "change", "label": "다가오는 변화", "hint": "곧 찾아올 전환의 성격" },
+        { "key": "arrive", "label": "도달하는 곳", "hint": "이 흐름이 데려다줄 자리" }
+      ]
+    },
+    {
+      "key": "relation",
+      "label": "대인관계",
+      "short": "관계",
+      "question": "사람들 사이에서 나는 어떻게 놓여 있을까",
+      "lens": "내가 비치는 모습과 관계를 여는 지점",
+      "positions": [
+        { "key": "mirror", "label": "내가 비치는 모습", "hint": "남들 눈에 지금 내가 어떻게 보이는지" },
+        { "key": "wall", "label": "관계의 벽", "hint": "가까워지는 것을 막고 있는 것" },
+        { "key": "key", "label": "관계를 여는 열쇠", "hint": "이 관계를 풀어 줄 태도" }
+      ]
+    },
+    {
+      "key": "reunion",
+      "label": "재회운",
+      "short": "재회",
+      "question": "끝난 그 관계는 지금 어떤 상태일까",
+      "lens": "남은 감정과 다시 만날 조건",
+      "positions": [
+        { "key": "past", "label": "지난 관계가 남긴 것", "hint": "그 시간이 두 사람에게 남긴 자국" },
+        { "key": "gap", "label": "지금 두 사람의 거리", "hint": "현재 서로가 놓인 자리" },
+        { "key": "chance", "label": "재회의 가능성", "hint": "다시 이어진다면 어떤 조건에서일지" }
+      ]
+    },
+    {
+      "key": "job",
+      "label": "이직운",
+      "short": "이직",
+      "question": "지금 자리를 옮겨도 될까",
+      "lens": "머무름과 떠남의 실익",
+      "positions": [
+        { "key": "here", "label": "지금 자리의 진실", "hint": "현재 직장이 실제로 주고 있는 것" },
+        { "key": "cond", "label": "옮길 때의 조건", "hint": "움직인다면 반드시 챙겨야 할 것" },
+        { "key": "after", "label": "이직 후의 흐름", "hint": "옮긴 뒤 펼쳐질 결" }
+      ]
+    },
+    {
+      "key": "business",
+      "label": "사업운",
+      "short": "사업",
+      "question": "내 사업은 지금 어디쯤 와 있을까",
+      "lens": "체력과 고비와 성장의 방향",
+      "positions": [
+        { "key": "health", "label": "사업의 현재 체력", "hint": "지금 이 사업이 버티고 있는 힘" },
+        { "key": "hurdle", "label": "넘어야 할 고비", "hint": "가장 먼저 부딪힐 문제" },
+        { "key": "growth", "label": "성장의 방향", "hint": "힘을 실어야 할 쪽" }
+      ]
+    },
+    {
+      "key": "money",
+      "label": "재물운",
+      "short": "재물",
+      "question": "돈은 지금 나에게 어떻게 흐르고 있을까",
+      "lens": "들어오는 자리와 새는 자리",
+      "positions": [
+        { "key": "flow", "label": "지금의 돈 흐름", "hint": "현재 재정의 상태" },
+        { "key": "leak", "label": "새거나 막힌 곳", "hint": "돈이 빠지거나 멈춰 있는 지점" },
+        { "key": "gain", "label": "들어올 자리", "hint": "재물이 열릴 통로" }
+      ]
+    },
+    {
+      "key": "career",
+      "label": "적성·진로",
+      "short": "진로",
+      "question": "나는 어떤 일에 맞는 사람일까",
+      "lens": "타고난 결과 나아갈 길",
+      "positions": [
+        { "key": "gift", "label": "타고난 결", "hint": "내 안에 이미 있는 재능의 성질" },
+        { "key": "block", "label": "지금 막고 있는 것", "hint": "재능이 펴지지 못하게 하는 것" },
+        { "key": "path", "label": "나아갈 길", "hint": "이 결이 가장 잘 살아나는 방향" }
+      ]
+    },
+    {
+      "key": "exam",
+      "label": "시험운",
+      "short": "시험",
+      "question": "이번 시험은 어떻게 흘러갈까",
+      "lens": "실력과 장애물과 결과의 결",
+      "positions": [
+        { "key": "level", "label": "현재 실력", "hint": "지금 쌓여 있는 준비의 두께" },
+        { "key": "block", "label": "장애물", "hint": "점수를 깎을 위험 요소" },
+        { "key": "result", "label": "결과의 결", "hint": "이대로 갔을 때의 결과 성격" }
+      ]
+    }
+  ]
+}

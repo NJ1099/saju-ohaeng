@@ -1,14 +1,16 @@
 {
   "name": "saju-ohaeng",
-  "version": "0.1.0",
-  "description": "사주 오행 분석 — 만세력 자동변환 + 영성 풀이 (토스풍 웹/모바일 SPA)",
+  "version": "0.2.0",
+  "description": "사주 · 타로 — 만세력 자동변환 + 명리 이론 풀이 + 라이더-웨이트 타로 3장 리딩 (토스풍 웹/모바일 SPA)",
   "type": "module",
   "scripts": {
     "serve": "node server.js",
-    "test": "node tests/manse.test.mjs && node tests/theory.test.mjs",
+    "test": "node tests/manse.test.mjs && node tests/theory.test.mjs && node tests/tarot.test.mjs",
     "test:manse": "node tests/manse.test.mjs",
     "test:theory": "node tests/theory.test.mjs",
-    "test:ui": "node tests/verify-features.mjs && node tests/verify-compat.mjs"
+    "test:tarot": "node tests/tarot.test.mjs",
+    "test:ui": "node tests/verify-features.mjs && node tests/verify-compat.mjs && node tests/verify-tarot.mjs",
+    "fetch:tarot": "node scripts/fetch-tarot-images.mjs"
   },
   "license": "MIT",
   "devDependencies": {

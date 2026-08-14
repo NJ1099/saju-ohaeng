@@ -8,15 +8,16 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="오행" />
-<title>오행 — 사주 오행 분석</title>
-<meta name="description" content="이름·생년월일·시간만 넣으면 만세력으로 사주 원국을 자동 계산하고 오행·영성 지표로 풀이해 드립니다." />
-<meta property="og:title" content="오행 — 사주 오행 분석" />
-<meta property="og:description" content="이름·생년월일·시간만 넣으면 사주 원국을 자동 계산해 오행·영성으로 풀이합니다." />
+<title>오행 — 사주 · 타로</title>
+<meta name="description" content="이름·생년월일·시간만 넣으면 만세력으로 사주 원국을 자동 계산해 풀이하고, 타로 78장에서 세 장을 뽑아 아홉 가지 운을 읽어 드립니다." />
+<meta property="og:title" content="오행 — 사주 · 타로" />
+<meta property="og:description" content="사주 원국 자동 계산과 타로 3장 리딩. 연애·재물·이직·시험 등 아홉 가지 운을 읽어 드립니다." />
 <meta property="og:type" content="website" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23191F28'/%3E%3Ctext x='32' y='45' font-size='38' font-weight='800' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E4%BA%94%3C/text%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <link rel="stylesheet" href="./styles/app.css" />
+<link rel="stylesheet" href="./styles/tarot.css" />
 </head>
 <body>
 <div class="app">
@@ -24,15 +25,48 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <span class="brand-mark">五</span>
+        <button class="icon-btn brand-home" id="btn-home" title="메뉴로" aria-label="메뉴로 돌아가기" hidden>←</button>
+        <span class="brand-mark" id="brand-mark">五</span>
         <span class="brand-name">오행</span>
-        <span class="brand-sub">사주 오행 분석</span>
+        <span class="brand-sub" id="brand-sub">사주 오행 분석</span>
       </div>
       <button class="icon-btn" id="btn-restart" title="처음으로" aria-label="처음으로" hidden>↻</button>
     </div>
   </header>
 
   <main class="main">
+
+  <!-- ============================================================
+       라우트 1 — 메뉴 (첫 진입 화면)
+       ============================================================ -->
+  <div class="route" id="route-menu" hidden>
+    <section class="menu">
+      <div class="menu-head">
+        <h1 class="menu-title">오늘, 무엇을 볼까요</h1>
+        <p class="menu-desc">사주는 타고난 결을, 타로는 지금의 흐름을 읽습니다.</p>
+      </div>
+      <div class="menu-grid">
+        <button type="button" class="menu-tile saju" data-goto="saju">
+          <span class="mt-mark">五</span>
+          <span class="mt-name">사주</span>
+          <span class="mt-desc">생년월일시로 원국을 계산해<br/>오행·십성·대운까지 풀이</span>
+          <span class="mt-go">시작하기</span>
+        </button>
+        <button type="button" class="menu-tile tarot" data-goto="tarot">
+          <span class="mt-fan" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="mt-name">타로</span>
+          <span class="mt-desc">78장에서 세 장을 뽑아<br/>아홉 가지 운을 읽기</span>
+          <span class="mt-go">카드 뽑기</span>
+        </button>
+      </div>
+      <p class="menu-foot">사주도 타로도 정답이 아니라 방향을 보는 지도입니다.</p>
+    </section>
+  </div>
+
+  <!-- ============================================================
+       라우트 2 — 사주 (기존 기능 그대로)
+       ============================================================ -->
+  <div class="route" id="route-saju" hidden>
 
     <!-- ============ 입력 화면 ============ -->
     <section class="view" id="view-input">
@@ -189,6 +223,49 @@
       <div id="result-root"></div>
     </section>
 
+  </div>
+
+  <!-- ============================================================
+       라우트 3 — 타로
+       ============================================================ -->
+  <div class="route" id="route-tarot" hidden>
+
+    <!-- ── 3-1. 주제 선택 ── -->
+    <section class="view" id="view-tarot-topic">
+      <div class="t-hero">
+        <h1 class="t-hero-title">무엇이 궁금한가요</h1>
+        <p class="t-hero-desc">고른 주제에 따라 세 장의 자리 뜻이 달라집니다.</p>
+      </div>
+      <div class="t-topics" id="t-topics" role="group" aria-label="주제 선택"></div>
+      <label class="t-switch">
+        <input type="checkbox" id="t-reversed" checked />
+        <span><b>역방향 포함</b><small>실제 덱처럼 카드가 뒤집혀 나옵니다. 나쁜 뜻이 아니라 안으로 향한 기운이에요.</small></span>
+      </label>
+    </section>
+
+    <!-- ── 3-2. 카드 뽑기 ── -->
+    <section class="view hidden" id="view-tarot-draw">
+      <div class="t-draw-head">
+        <p class="t-draw-topic" id="t-draw-topic"></p>
+        <h2 class="t-draw-title" id="t-draw-title">마음이 가는 카드를 세 장 골라 주세요</h2>
+        <div class="t-slots" id="t-slots" aria-live="polite"></div>
+      </div>
+      <div class="t-deck-wrap">
+        <div class="t-deck" id="t-deck" role="group" aria-label="카드 78장"></div>
+      </div>
+      <div class="t-draw-actions">
+        <button type="button" class="t-btn ghost" id="t-shuffle">다시 섞기</button>
+        <button type="button" class="t-btn ghost" id="t-auto">알아서 뽑아 주세요</button>
+      </div>
+    </section>
+
+    <!-- ── 3-3. 결과 ── -->
+    <section class="view hidden" id="view-tarot-result">
+      <div id="t-result-root"></div>
+    </section>
+
+  </div>
+
   </main>
 </div>
 
@@ -223,5 +300,6 @@
 </div>
 
 <script type="module" src="./app.js"></script>
+<script type="module" src="./tarot.js"></script>
 </body>
 </html>

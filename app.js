@@ -10,6 +10,7 @@ import { leapMonthOf, daysInLunarMonth } from './engine/lunar.js';
 import { computeDaewoon, computeSewoon } from './engine/luck.js';
 import { GLOSSARY, INDICATOR_GLOSS } from './engine/glossary.js';
 import { drawShareCard, canvasToBlob } from './share.js';
+import { initRouter, onRoute, go } from './router.js';
 import {
   STEMS, BRANCHES, STEM_ELEMENT, BRANCH_ELEMENT, ELEMENTS, sipseongOf, HIDDEN_STEMS,
 } from './engine/constants.js';
@@ -54,7 +55,43 @@ function init() {
   initShareSheet();
   initTermPopover();
   initScrollTop();
-  applyParamsIfAny(); // 공유 링크로 들어오면 자동 입력·계산
+  initShell();
+}
+
+// ── 셸(메뉴·라우팅·상단바) ────────────────────────────────
+/** 라우트별 상단바 문구. 브랜드는 유지하고 부제만 바꾼다. */
+const ROUTE_META = {
+  menu: { sub: '사주 · 타로', mark: '五' },
+  saju: { sub: '사주 오행 분석', mark: '五' },
+  tarot: { sub: '타로 3장 리딩', mark: '☾' },
+};
+
+function initShell() {
+  // 메뉴 타일 → 라우트 이동
+  for (const b of $$('.menu-tile')) {
+    b.addEventListener('click', () => go(b.dataset.goto));
+  }
+  $('#btn-home').addEventListener('click', () => go('menu'));
+
+  onRoute((to) => {
+    const meta = ROUTE_META[to] || ROUTE_META.menu;
+    $('#brand-sub').textContent = meta.sub;
+    $('#brand-mark').textContent = meta.mark;
+    $('#btn-home').hidden = to === 'menu';
+    // 사주를 떠나면 결과 화면 상태를 초기화해 다음 진입이 깔끔하게 시작되도록 한다.
+    if (to !== 'saju') $('#btn-restart').hidden = true;
+    else $('#btn-restart').hidden = $('#view-result').classList.contains('hidden');
+  });
+
+  initRouter({
+    hasSajuParams: () => !!new URLSearchParams(location.search).get('y'),
+    hasTarotParams: () => {
+      const p = new URLSearchParams(location.search);
+      return !!(p.get('t') && p.get('c'));
+    },
+  });
+
+  applyParamsIfAny(); // 사주 공유 링크로 들어오면 자동 입력·계산
 }
 
 /** 한 사람 분량의 입력 컨트롤을 채우고 이벤트를 연결한다. */
@@ -105,11 +142,15 @@ function initTermPopover() {
     if (t) { e.preventDefault(); showTerm(t.dataset.term, t); return; }
     if (!e.target.closest('.tp-card')) hideTerm();
   });
-  window.addEventListener('scroll', hideTerm, { passive: true });
+  // 탭 직후의 관성 스크롤이 팝오버를 즉시 닫아 버리는 걸 막는다
+  // (긴 결과 페이지 아래쪽 용어를 누르면 열리자마자 사라졌다).
+  window.addEventListener('scroll', () => { if (Date.now() - termOpenedAt > 350) hideTerm(); }, { passive: true });
   window.addEventListener('resize', hideTerm);
 }
+let termOpenedAt = 0;
 function showTerm(key, anchor) {
   const g = GLOSSARY[key]; if (!g) return;
+  termOpenedAt = Date.now();
   const pop = $('#term-pop'); const card = pop.querySelector('.tp-card');
   pop.querySelector('.tp-title').textContent = g.title;
   pop.querySelector('.tp-def').textContent = g.def;

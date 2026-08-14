@@ -18,6 +18,11 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  // 타로 카드 이미지(assets/tarot/*.jpg) — 없으면 octet-stream 으로 나간다
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
 };
 
 const server = createServer(async (req, res) => {

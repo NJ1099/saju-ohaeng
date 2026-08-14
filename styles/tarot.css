@@ -1,0 +1,333 @@
+/* ============================================================
+ *  타로 — 라우트 스코프 다크 테마 + 카드 뽑기 애니메이션
+ *
+ *  테마 락: 모든 규칙은 body[data-route="tarot"] 아래에만 산다.
+ *  사주 라우트의 라이트 토큰을 절대 건드리지 않는다.
+ *  액센트는 골드 #E8B84B 하나로 고정 (배경 #0B0B10 대비 ≈10:1, AA 통과).
+ * ============================================================ */
+
+body[data-route="tarot"] {
+  --t-bg:      #0B0B10;
+  --t-bg-2:    #14131C;
+  --t-bg-3:    #1D1B27;
+  --t-line:    #2A2836;
+  --t-ink:     #F4F1E8;
+  --t-ink-2:   #C7C1B4;
+  --t-ink-3:   #9A9486;  /* 본문 보조 — 배경 대비 ≈5.4:1 */
+  --t-gold:    #E8B84B;
+  --t-gold-2:  #C79A33;
+  --t-gold-soft: rgba(232,184,75,.12);
+  --t-rev:     #C77DFF;  /* 역방향 표식 전용 (액센트 아님) */
+
+  background: var(--t-bg);
+  color: var(--t-ink);
+}
+
+/* 상단바도 함께 어두워져야 라우트 안에서 테마가 갈라지지 않는다 */
+body[data-route="tarot"] .topbar {
+  background: rgba(11,11,16,.78);
+  border-bottom-color: rgba(255,255,255,.06);
+}
+body[data-route="tarot"] .brand-name { color: var(--t-ink); }
+body[data-route="tarot"] .brand-sub { color: var(--t-ink-3); }
+body[data-route="tarot"] .brand-mark { background: var(--t-gold); color: #14131C; }
+body[data-route="tarot"] .icon-btn {
+  background: var(--t-bg-3); color: var(--t-ink-2); box-shadow: none;
+  border: 1px solid var(--t-line);
+}
+body[data-route="tarot"] .to-top {
+  background: var(--t-bg-3); color: var(--t-ink); border: 1px solid var(--t-line);
+}
+body[data-route="tarot"] :focus-visible { outline-color: var(--t-gold); }
+
+#route-tarot .view.hidden { display: none; }
+
+/* ── 주제 선택 ────────────────────────────────────────── */
+.t-hero { padding: 26px 6px 20px; }
+.t-hero-title {
+  font-size: 27px; font-weight: 800; letter-spacing: -.03em;
+  margin: 0 0 9px; line-height: 1.3; color: var(--t-ink);
+}
+.t-hero-desc { font-size: 14.5px; color: var(--t-ink-3); margin: 0; line-height: 1.6; }
+
+.t-topics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.t-topic {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 16px 6px 13px;
+  background: var(--t-bg-2); border: 1px solid var(--t-line);
+  border-radius: 15px; color: var(--t-ink-2);
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+.t-topic small { font-size: 11px; font-weight: 500; color: var(--t-ink-3); }
+.t-topic:hover { border-color: var(--t-gold-2); background: var(--t-bg-3); }
+.t-topic:active { transform: scale(.97); }
+.t-topic[aria-pressed="true"] {
+  background: var(--t-gold-soft); border-color: var(--t-gold); color: var(--t-gold);
+}
+.t-topic[aria-pressed="true"] small { color: var(--t-gold-2); }
+
+.t-switch {
+  display: flex; align-items: flex-start; gap: 11px;
+  margin: 20px 0 0; padding: 15px 16px;
+  background: var(--t-bg-2); border: 1px solid var(--t-line); border-radius: 15px;
+  cursor: pointer;
+}
+.t-switch input { margin-top: 3px; accent-color: var(--t-gold); width: 17px; height: 17px; }
+.t-switch b { display: block; font-size: 14px; color: var(--t-ink); margin-bottom: 3px; }
+.t-switch small { display: block; font-size: 12.5px; color: var(--t-ink-3); line-height: 1.55; }
+
+/* ── 뽑기 화면 ────────────────────────────────────────── */
+.t-draw-head { padding: 20px 6px 14px; text-align: center; }
+.t-draw-topic {
+  font-size: 12px; font-weight: 700; color: var(--t-gold);
+  margin: 0 0 7px; letter-spacing: .04em;
+}
+.t-draw-title {
+  font-size: 19px; font-weight: 800; letter-spacing: -.02em;
+  margin: 0 0 18px; line-height: 1.4; color: var(--t-ink);
+}
+
+/* 뽑은 카드가 안착하는 세 자리 */
+.t-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.t-slot {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+}
+.t-slot-box {
+  width: 100%; aspect-ratio: 100 / 168;
+  border-radius: 9px; border: 1.5px dashed var(--t-line);
+  display: grid; place-items: center;
+  color: var(--t-ink-3); font-size: 20px; font-weight: 700;
+  transition: border-color .2s ease, background .2s ease;
+}
+.t-slot.filled .t-slot-box {
+  border: none; background: transparent;
+  animation: t-land .42s cubic-bezier(.16,1,.3,1);
+}
+.t-slot-label { font-size: 11.5px; color: var(--t-ink-3); font-weight: 600; text-align: center; }
+.t-slot.filled .t-slot-label { color: var(--t-gold); }
+@keyframes t-land {
+  0%   { transform: translateY(-14px) scale(.86); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+
+/* 슬롯 안의 뒷면 카드 */
+.t-slot-card {
+  width: 100%; height: 100%; border-radius: 9px;
+  background:
+    repeating-linear-gradient(45deg, rgba(232,184,75,.10) 0 3px, transparent 3px 6px),
+    linear-gradient(160deg, #2A2740, #14131F);
+  border: 1px solid rgba(232,184,75,.42);
+  box-shadow: 0 4px 14px rgba(0,0,0,.45);
+}
+
+/* ── 78장 덱 (부채꼴) ─────────────────────────────────── */
+.t-deck-wrap {
+  margin: 26px -16px 0;   /* .main 좌우 패딩을 상쇄해 전폭으로 편다 */
+  padding: 30px 16px 34px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(232,184,75,.07), transparent 62%),
+    var(--t-bg);
+}
+.t-deck {
+  position: relative;
+  height: 320px;              /* JS가 줄 수에 맞춰 덮어쓴다 */
+  margin: 0 auto;
+  max-width: 460px;
+}
+
+/* 카드 한 장.
+ * ⚠️ 버튼(.t-card)은 **실제로 노출된 영역**만 차지한다. 카드 그림(> i)은
+ *    그보다 크게 삐져나오지만 pointer-events 를 끈다. 이렇게 해야 뒤 카드가
+ *    앞 카드의 클릭을 가로채지 않는다 — 78장을 한 줄 부채로 펴면
+ *    한 장당 5px 남짓만 노출돼 사실상 마지막 카드만 눌리는 문제가 생긴다. */
+.t-card {
+  position: absolute;
+  border: none; padding: 0; background: none;
+  cursor: pointer;
+  transition: transform .26s cubic-bezier(.16,1,.3,1), opacity .3s ease;
+  transform: translateY(var(--y, 0));
+}
+.t-card > i {
+  position: absolute; left: 0; top: 0;
+  width: 54px; height: 91px;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(45deg, rgba(232,184,75,.10) 0 3px, transparent 3px 6px),
+    linear-gradient(160deg, #2A2740, #14131F);
+  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+  pointer-events: none;                 /* 클릭은 언제나 자기 버튼에서만 */
+  transform-origin: 50% 100%;
+  transform: rotate(var(--a, 0deg));
+  transition: box-shadow .2s ease, filter .2s ease;
+}
+/* 카드 뒷면 문양 — 순수 CSS, 이미지 없음 */
+.t-card > i::after {
+  content: ''; position: absolute; inset: 6px;
+  border: 1px solid rgba(232,184,75,.34); border-radius: 3px;
+}
+.t-card:hover, .t-card:focus-visible { --y: -14px; z-index: 200 !important; }
+.t-card:hover > i, .t-card:focus-visible > i {
+  box-shadow: 0 12px 24px rgba(0,0,0,.65);
+  filter: brightness(1.35);
+}
+.t-card:active { --y: -7px; }
+.t-card.picked { opacity: 0; pointer-events: none; transform: translateY(-120px) scale(.6); }
+.t-card[disabled] { cursor: default; }
+
+/* 섞는 순간 — 카드가 가운데로 모였다 다시 퍼진다 */
+.t-deck.shuffling .t-card {
+  transition: transform .34s cubic-bezier(.5,0,.5,1);
+  transform: translate(var(--sx, 0), -8px);
+}
+
+.t-draw-actions { display: flex; gap: 10px; margin-top: 22px; }
+.t-btn {
+  flex: 1; padding: 15px 12px; border-radius: 14px;
+  font-family: inherit; font-size: 15px; font-weight: 700;
+  border: 1px solid var(--t-line); background: var(--t-bg-2); color: var(--t-ink-2);
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+.t-btn:hover { background: var(--t-bg-3); border-color: var(--t-gold-2); }
+.t-btn:active { transform: translateY(1px); }
+.t-btn.primary {
+  background: var(--t-gold); border-color: var(--t-gold); color: #14131C;
+}
+.t-btn.primary:hover { background: var(--t-gold-2); border-color: var(--t-gold-2); }
+
+/* ── 결과 ─────────────────────────────────────────────── */
+.t-res-head { padding: 24px 4px 18px; text-align: center; }
+.t-res-topic {
+  display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  color: var(--t-gold); background: var(--t-gold-soft);
+  padding: 6px 13px; border-radius: 999px; margin-bottom: 12px;
+}
+.t-res-title {
+  font-size: 22px; font-weight: 800; letter-spacing: -.02em;
+  margin: 0 0 8px; line-height: 1.35; color: var(--t-ink);
+}
+.t-res-sub { font-size: 13.5px; color: var(--t-ink-3); margin: 0; line-height: 1.6; }
+
+/* 공개된 세 장 */
+.t-spread { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 26px; }
+.t-spread-item { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.t-face-wrap { width: 100%; aspect-ratio: 100 / 168; perspective: 900px; }
+.t-face {
+  width: 100%; height: 100%; border-radius: 9px; overflow: hidden;
+  background: var(--t-bg-3); box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  border: 1px solid var(--t-line);
+  animation: t-flip .62s cubic-bezier(.16,1,.3,1) backwards;
+  animation-delay: var(--d, 0s);
+}
+.t-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.t-face.reversed img { transform: rotate(180deg); }
+@keyframes t-flip {
+  0%   { transform: rotateY(90deg) scale(.9); opacity: 0; }
+  60%  { opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+.t-spread-cap { text-align: center; }
+.t-pos-label { display: block; font-size: 11.5px; font-weight: 700; color: var(--t-gold); margin-bottom: 3px; }
+.t-card-name { display: block; font-size: 13px; font-weight: 700; color: var(--t-ink); line-height: 1.35; }
+.t-card-en {
+  display: block; font-size: 10.5px; color: var(--t-ink-3); margin-top: 2px;
+  font-family: Georgia, 'Times New Roman', serif; letter-spacing: .02em;
+}
+.t-ori {
+  display: inline-block; margin-top: 5px; font-size: 10.5px; font-weight: 700;
+  padding: 2px 7px; border-radius: 999px;
+  background: rgba(255,255,255,.07); color: var(--t-ink-3);
+}
+.t-ori.rev { background: rgba(199,125,255,.14); color: var(--t-rev); }
+
+/* 카드별 해석 블록 */
+.t-block {
+  background: var(--t-bg-2); border: 1px solid var(--t-line);
+  border-radius: 17px; padding: 20px 18px; margin-bottom: 12px;
+}
+.t-block-head {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding-bottom: 12px; margin-bottom: 13px; border-bottom: 1px solid var(--t-line);
+}
+.t-block-pos { font-size: 12px; font-weight: 700; color: var(--t-gold); }
+.t-block-name { font-size: 17px; font-weight: 800; color: var(--t-ink); letter-spacing: -.01em; }
+.t-block-hint { font-size: 12px; color: var(--t-ink-3); width: 100%; margin-top: 2px; }
+.t-kw { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 13px; }
+.t-kw span {
+  font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 999px;
+  background: var(--t-bg-3); color: var(--t-ink-2); border: 1px solid var(--t-line);
+}
+.t-text { font-size: 14.5px; line-height: 1.75; color: var(--t-ink); margin: 0 0 12px; }
+.t-core {
+  font-size: 13px; line-height: 1.7; color: var(--t-ink-3);
+  margin: 0; padding: 12px 14px; border-left: 2px solid var(--t-gold-2);
+  background: rgba(255,255,255,.03); border-radius: 0 9px 9px 0;
+}
+
+/* 세 장을 함께 봐야 보이는 관찰 */
+.t-notes {
+  background: var(--t-gold-soft); border: 1px solid rgba(232,184,75,.28);
+  border-radius: 17px; padding: 19px 18px; margin: 18px 0 12px;
+}
+.t-notes h3 { font-size: 14px; font-weight: 800; color: var(--t-gold); margin: 0 0 12px; }
+.t-note { display: flex; gap: 10px; margin-bottom: 11px; }
+.t-note:last-child { margin-bottom: 0; }
+.t-note b {
+  flex: none; font-size: 11px; font-weight: 700; color: #14131C; background: var(--t-gold);
+  padding: 3px 9px; border-radius: 999px; height: fit-content; margin-top: 2px;
+}
+.t-note p { margin: 0; font-size: 13.5px; line-height: 1.7; color: var(--t-ink-2); }
+
+.t-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0 14px; }
+.t-actions .t-btn.wide { grid-column: 1 / -1; }
+
+.t-disclaimer {
+  font-size: 12.5px; color: var(--t-ink-3); line-height: 1.65;
+  text-align: center; margin: 18px 0 0; padding: 0 8px;
+}
+
+/* 용어 밑줄 — 사주의 .term 과 같은 인터랙션, 색만 골드 */
+body[data-route="tarot"] .term {
+  border-bottom: 1px dashed var(--t-gold-2); color: var(--t-ink); cursor: pointer;
+}
+
+/* 로딩 */
+.t-loading { text-align: center; padding: 60px 20px; color: var(--t-ink-3); }
+.t-loading .t-spin {
+  width: 30px; height: 30px; margin: 0 auto 16px;
+  border: 2.5px solid var(--t-line); border-top-color: var(--t-gold);
+  border-radius: 50%; animation: t-spin .8s linear infinite;
+}
+@keyframes t-spin { to { transform: rotate(360deg); } }
+
+.t-error {
+  background: rgba(240,68,82,.1); border: 1px solid rgba(240,68,82,.3);
+  color: #FF8A94; border-radius: 14px; padding: 16px; font-size: 14px; line-height: 1.6;
+}
+
+/* ── 반응형 ───────────────────────────────────────────── */
+@media (min-width: 480px) {
+  .t-hero-title { font-size: 30px; }
+}
+@media (max-width: 360px) {
+  .t-topics { gap: 7px; }
+  .t-topic { font-size: 13px; padding: 13px 4px 11px; }
+  .t-spread { gap: 7px; }
+  .t-card-name { font-size: 12px; }
+}
+
+/* ── 모션 최소화 ──────────────────────────────────────
+ * 카드가 실제로 뽑히고 공개되는 흐름은 유지하되, 움직임만 없앤다. */
+@media (prefers-reduced-motion: reduce) {
+  .t-card,
+  .t-deck.shuffling .t-card,
+  .menu-tile,
+  .t-topic,
+  .t-btn { transition: none; }
+  .t-card:hover, .t-card:focus-visible, .t-card:active { --y: 0; }
+  .t-card.picked { transform: rotate(var(--a)); }
+  .t-face { animation: none; }
+  .t-slot.filled .t-slot-box { animation: none; }
+  .t-loading .t-spin { animation: none; }
+}

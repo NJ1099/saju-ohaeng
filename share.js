@@ -112,17 +112,153 @@ function label2(saju, a) {
 }
 function typeShort(saju) { return saju._typeLabel || `${saju.ilgan} 일간 사주`; }
 
-function wrap(ctx, text, x, y, maxW, lh) {
-  const words = text.split(' '); let line = ''; let yy = y;
+/**
+ * 텍스트 줄바꿈 렌더. 마지막 줄의 y를 돌려준다(이어서 그릴 때 쓴다).
+ * @param {number} [maxLines] 넘치면 마지막 줄 끝을 …로 자른다. 생략하면 제한 없음.
+ */
+function wrap(ctx, text, x, y, maxW, lh, maxLines = Infinity) {
+  const words = String(text).split(' ');
+  let line = ''; let yy = y; let n = 1;
   for (const w of words) {
     const t = line ? line + ' ' + w : w;
-    if (ctx.measureText(t).width > maxW && line) { ctx.fillText(line, x, yy); line = w; yy += lh; }
-    else line = t;
+    if (ctx.measureText(t).width > maxW && line) {
+      if (n >= maxLines) { ctx.fillText(line.replace(/.$/, '…'), x, yy); return yy; }
+      ctx.fillText(line, x, yy); line = w; yy += lh; n++;
+    } else line = t;
   }
   if (line) ctx.fillText(line, x, yy);
+  return yy;
 }
 
 /** canvas → PNG Blob */
 export function canvasToBlob(cv) {
   return new Promise((res) => cv.toBlob((b) => res(b), 'image/png'));
+}
+
+// ============================================================
+//  타로 스프레드 카드뉴스 (라운드 7)
+//  사주 카드와 같은 1080×1350 규격. 다크 테마 + 골드 액센트.
+// ============================================================
+
+const T = {
+  bg: '#0B0B10', bg2: '#14131C', line: '#2A2836',
+  ink: '#F4F1E8', ink2: '#C7C1B4', ink3: '#9A9486',
+  gold: '#E8B84B', gold2: '#C79A33', rev: '#C77DFF',
+};
+
+/** 카드 앞면 이미지를 로드한다. 실패해도 전체 렌더는 계속되도록 null 을 돌려준다. */
+function loadImage(src) {
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => res(null);
+    img.src = src;
+  });
+}
+
+/**
+ * 타로 리딩 → 공유 카드 canvas(1080×1350).
+ * @param {object} reading engine/tarot.js readSpread() 결과
+ */
+export async function drawTarotCard(reading) {
+  if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch { /* noop */ } }
+  const W = 1080, H = 1350, P = 76;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  // 배경
+  ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, 0, 0, W / 2, 0, W * 0.9);
+  glow.addColorStop(0, 'rgba(232,184,75,.10)');
+  glow.addColorStop(1, 'rgba(232,184,75,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H * 0.6);
+
+  // 브랜드
+  ctx.textBaseline = 'alphabetic';
+  rr(ctx, P, 70, 54, 54, 15); ctx.fillStyle = T.gold; ctx.fill();
+  ctx.fillStyle = T.bg2; ctx.font = `800 28px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText('☾', P + 27, 108);
+  ctx.textAlign = 'left'; ctx.fillStyle = T.ink; ctx.font = `800 31px ${FONT}`;
+  ctx.fillText('오행', P + 70, 108);
+  ctx.fillStyle = T.ink3; ctx.font = `600 21px ${FONT}`;
+  ctx.fillText('타로 3장 리딩', P + 134, 108);
+
+  // 주제
+  const { topic, cards, summary } = reading;
+  ctx.fillStyle = T.gold; ctx.font = `700 24px ${FONT}`;
+  ctx.fillText(topic.label, P, 186);
+  ctx.fillStyle = T.ink; ctx.font = `800 40px ${FONT}`;
+  wrap(ctx, topic.question, P, 236, W - P * 2, 52);
+
+  // 카드 3장 — 원본 비율 100:168 유지
+  const gap = 28;
+  const cw = (W - P * 2 - gap * 2) / 3;
+  const ch = Math.round(cw * 1.68);
+  const cy = 300;
+
+  const imgs = await Promise.all(cards.map((c) => loadImage(`./${c.card.img}`)));
+
+  cards.forEach((c, i) => {
+    const x = P + i * (cw + gap);
+
+    // 카드 액자
+    ctx.save();
+    rr(ctx, x, cy, cw, ch, 12);
+    ctx.fillStyle = T.bg2; ctx.fill();
+    ctx.clip();
+    const img = imgs[i];
+    if (img) {
+      if (c.reversed) {
+        // 역방향은 실제로 180° 돌려 그린다
+        ctx.translate(x + cw / 2, cy + ch / 2);
+        ctx.rotate(Math.PI);
+        ctx.drawImage(img, -cw / 2, -ch / 2, cw, ch);
+      } else {
+        ctx.drawImage(img, x, cy, cw, ch);
+      }
+    } else {
+      // 이미지를 못 받았을 때의 대체 — 카드명만이라도 보이게 한다
+      ctx.fillStyle = T.ink3; ctx.font = `700 20px ${FONT}`; ctx.textAlign = 'center';
+      ctx.fillText(c.card.name, x + cw / 2, cy + ch / 2);
+    }
+    ctx.restore();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = T.line;
+    rr(ctx, x, cy, cw, ch, 12); ctx.stroke();
+
+    // 자리 이름 · 카드명 · 방향
+    let ty = cy + ch + 38;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = T.gold; ctx.font = `700 20px ${FONT}`;
+    ctx.fillText(c.position.label, x + cw / 2, ty);
+    ty += 32;
+    ctx.fillStyle = T.ink; ctx.font = `800 24px ${FONT}`;
+    ty = wrap(ctx, c.card.name, x + cw / 2, ty, cw, 30);
+    ty += 28;
+    ctx.fillStyle = c.reversed ? T.rev : T.ink3; ctx.font = `700 18px ${FONT}`;
+    ctx.fillText(c.reversed ? '역방향' : '정방향', x + cw / 2, ty);
+  });
+
+  // 스프레드 관찰 한 줄
+  ctx.textAlign = 'left';
+  const noteY = H - 210;
+  ctx.fillStyle = T.ink3; ctx.font = `600 22px ${FONT}`;
+  const metaLine = [
+    `메이저 ${summary.majorCount}장`,
+    `역방향 ${summary.reversedCount}장`,
+    summary.dominantSuit ? `${cards.find((c) => c.card.suit === summary.dominantSuit).card.suitLabel} 쏠림` : null,
+  ].filter(Boolean).join('  ·  ');
+  ctx.fillText(metaLine, P, noteY);
+
+  ctx.fillStyle = T.ink2; ctx.font = `600 24px ${FONT}`;
+  const firstNote = summary.notes[0];
+  if (firstNote) {
+    wrap(ctx, firstNote.text.replace(/\*\*/g, ''), P, noteY + 44, W - P * 2, 34, 2);
+  }
+
+  // 푸터
+  ctx.fillStyle = '#6E6A61'; ctx.font = `600 21px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText('타로는 미래를 정해 주지 않습니다 · 지금을 비추는 거울입니다', W / 2, H - 58);
+
+  return cv;
 }
