@@ -111,8 +111,19 @@ let sharedUrl = null;
   eq('공개된 카드 3장', await page.locator('.t-spread-item').count(), 3);
   eq('해석 블록 3개', await page.locator('.t-block').count(), 3);
 
-  // 카드 이미지가 실제로 로드됐는지 (404면 naturalWidth 가 0)
-  const imgOk = await page.$$eval('.t-face img', (els) => els.every((e) => e.complete && e.naturalWidth > 0));
+  // 카드 이미지가 실제로 로드됐는지 (404면 naturalWidth 가 0).
+  // lazy 로드 + 원격 배포 검증이면 네트워크 지연이 있으므로 기다렸다 판정한다.
+  let imgOk = false;
+  try {
+    await page.waitForFunction(
+      () => {
+        const els = [...document.querySelectorAll('.t-face img')];
+        return els.length === 3 && els.every((e) => e.complete && e.naturalWidth > 0);
+      },
+      { timeout: 20000 },
+    );
+    imgOk = true;
+  } catch { /* 아래에서 실패로 기록 */ }
   ok('카드 앞면 이미지 3장 로드', imgOk);
 
   // 자리 이름이 결과에도 반영됐는지
