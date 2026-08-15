@@ -130,9 +130,103 @@ function wrap(ctx, text, x, y, maxW, lh, maxLines = Infinity) {
   return yy;
 }
 
-/** canvas → PNG Blob */
+/** canvas → PNG Blob. toBlob 이 없거나 null 을 주는 환경(구형 iOS)은 dataURL 로 우회한다. */
 export function canvasToBlob(cv) {
-  return new Promise((res) => cv.toBlob((b) => res(b), 'image/png'));
+  return new Promise((res, rej) => {
+    const viaDataUrl = () => {
+      try { res(dataUrlToBlob(cv.toDataURL('image/png'))); }
+      catch (e) { rej(e); }
+    };
+    if (!cv.toBlob) { viaDataUrl(); return; }
+    cv.toBlob((b) => { if (b) res(b); else viaDataUrl(); }, 'image/png');
+  });
+}
+
+function dataUrlToBlob(url) {
+  const [head, b64] = url.split(',');
+  const mime = (/:(.*?);/.exec(head) || [])[1] || 'image/png';
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// ============================================================
+//  이미지 전달 (라운드 8)
+//
+//  "이미지 저장을 눌러도 모바일에서 아무 일이 없다"는 신고를 받고 경로를 다시 짰다.
+//  원인은 둘이었다.
+//   1) iOS Safari 의 share() 는 **사용자 제스처 직후**여야 한다. 캔버스를 그리고
+//      폰트·카드 이미지를 기다린 뒤에 부르면 활성화가 만료돼 NotAllowedError 로 죽는다.
+//      → 호출부가 결과 화면에서 blob 을 미리 만들어 두고(프리워밍), 클릭 시엔 바로 넘긴다.
+//   2) iOS 는 a[download] 를 자주 무시한다. 그래서 마지막 폴백으로 이미지를 띄우고
+//      길게 눌러 저장하도록 안내한다(이 경로는 아이폰에서 항상 통한다).
+// ============================================================
+
+/** iOS(아이패드OS 13+ 포함) 판별 — download 속성이 잘 듣지 않아 폴백 경로가 다르다. */
+export function isIOS() {
+  const ua = navigator.userAgent || '';
+  if (/iP(hone|od|ad)/.test(ua)) return true;
+  // 아이패드OS 13+ 는 데스크톱 사파리로 위장한다.
+  return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
+}
+
+/**
+ * 만들어 둔 PNG Blob 을 기기에 맞는 방법으로 사용자에게 넘긴다.
+ * @returns {Promise<'shared'|'downloaded'|'longpress'|'canceled'>}
+ */
+export async function deliverImage(blob, { fileName = 'image.png', title = '', text = '' } = {}) {
+  let file = null;
+  try { file = new File([blob], fileName, { type: 'image/png' }); } catch { /* File 미지원 */ }
+
+  // ① 공유 시트 — 아이폰·갤럭시 모두 여기서 '이미지 저장'을 고를 수 있다.
+  if (file && navigator.share && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title, text });
+      return 'shared';
+    } catch (err) {
+      if (err?.name === 'AbortError') return 'canceled';
+      // NotAllowedError(제스처 만료)·DataError 등은 아래 폴백으로 내려간다.
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+
+  // ② a[download] — 데스크톱과 대부분의 안드로이드 브라우저의 표준 경로.
+  if (!isIOS()) {
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName; a.rel = 'noopener';
+    document.body.appendChild(a);   // 파이어폭스·일부 안드로이드는 DOM 에 붙어 있어야 클릭이 먹는다
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return 'downloaded';
+  }
+
+  // ③ iOS 최후 폴백 — 길게 눌러 사진에 추가.
+  showLongPressSheet(url);
+  return 'longpress';
+}
+
+/** 아이폰에서 이미지를 길게 눌러 저장하도록 띄우는 시트. */
+function showLongPressSheet(url) {
+  document.getElementById('img-sheet')?.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'img-sheet';
+  wrap.className = 'img-sheet';
+  wrap.innerHTML = `
+    <div class="img-sheet-panel" role="dialog" aria-modal="true" aria-label="이미지 저장">
+      <p class="img-sheet-tip">이미지를 <b>길게 눌러</b> ‘사진에 추가’를 선택하면 저장돼요.</p>
+      <img class="img-sheet-img" alt="저장할 결과 이미지" />
+      <button type="button" class="img-sheet-close">닫기</button>
+    </div>`;
+  wrap.querySelector('.img-sheet-img').src = url;
+  document.body.appendChild(wrap);
+
+  const close = () => { wrap.remove(); URL.revokeObjectURL(url); };
+  wrap.querySelector('.img-sheet-close').addEventListener('click', close);
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
 }
 
 // ============================================================

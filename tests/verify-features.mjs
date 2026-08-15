@@ -11,7 +11,7 @@ page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
 
 const ok = (cond, msg) => console.log(`${cond ? '✓' : '✗ 실패'} ${msg}`);
 
-await page.goto('http://localhost:4476/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:4476/#/saju', { waitUntil: 'networkidle' });
 await page.fill('#in-name', '홍길동');
 await page.selectOption('#in-year', '1992');
 await page.selectOption('#in-month', '7');

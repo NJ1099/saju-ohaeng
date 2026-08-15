@@ -12,7 +12,7 @@ page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; console.log(`✓ ${msg}`); } else { fail++; console.log(`✗ 실패 ${msg}`); } };
 
-await page.goto('http://localhost:4476/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:4476/#/saju', { waitUntil: 'networkidle' });
 
 // ── 1) 솔로 모드: 이론 계층 카드 ──────────────────────────
 await page.fill('#in-name', '홍길동');

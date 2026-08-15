@@ -12,7 +12,7 @@ import {
 } from './engine/tarot.js';
 import { buildTarotPrompt } from './engine/promptBuilder.js';
 import { onRoute, go, currentRoute } from './router.js';
-import { drawTarotCard, canvasToBlob } from './share.js';
+import { drawTarotCard, canvasToBlob, deliverImage } from './share.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -29,7 +29,9 @@ const state = {
   topics: null,
   topicKey: null,
   allowReversed: true,
-  order: [],          // 화면에 펼쳐진 카드 순서 (셔플 결과)
+  fan: [],            // 아치에 남아 있는 카드 (deck 인덱스 배열, 셔플 결과)
+  cardEls: [],        // fan 과 1:1 대응하는 버튼 요소
+  active: 0,          // 아치 꼭대기 카드의 인덱스 (드래그 중에는 소수)
   picked: [],         // [{id, o}] 사용자가 고른 순서대로
   reading: null,
   pendingShare: null, // 공유 링크로 들어온 경우 로드 후 복원할 값
@@ -81,15 +83,17 @@ function init() {
   $('#t-reversed').addEventListener('change', (e) => { state.allowReversed = e.target.checked; });
   $('#t-shuffle').addEventListener('click', () => shuffleDeck());
   $('#t-auto').addEventListener('click', () => autoPick());
+  $('#t-pick').addEventListener('click', () => pickActive());
+  bindDeck();
 
-  // 화면 회전·창 크기 변경 시 카드 간격을 다시 잰다.
-  // 이미 뽑기 시작한 뒤에는 다시 그리지 않는다 — 고른 카드가 사라지면 안 된다.
+  // 화면 회전·창 크기 변경 시 아치를 다시 잰다.
+  // 카드 순서와 뽑은 카드는 그대로 두고 기하만 갱신한다.
   let resizeTimer = null;
   window.addEventListener('resize', () => {
-    if (state.picked.length || !state.loaded) return;
+    if (!state.cardEls.length) return;
     if ($('#view-tarot-draw').classList.contains('hidden')) return;
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(buildFan, 180);
+    resizeTimer = setTimeout(() => { measure(); layout(false); }, 180);
   });
 
   // 해시 없는 공유 링크(?t=..&c=..)는 라우터가 tarot 으로 보내 준다.
@@ -146,42 +150,213 @@ function renderSlots(topic) {
     </div>`).join('');
 }
 
-// 덱 배치 — 6줄 × 13장. 한 줄에 78장을 부채로 펴면 카드 하나가 5px 남짓만
-// 노출돼 손가락으로 고를 수가 없다(뒤 카드가 앞 카드의 클릭을 가로챈다).
-// 줄로 나누면 노출 폭이 넉넉해지고, 열마다 살짝 기울여 부채 느낌을 남긴다.
-const ROWS = 6, COLS = 13;
-const CARD_W = 54, CARD_H = 91;   // 원본 비율 100:168
-const V_STEP = 46;                // 아랫줄이 윗줄을 덮는 만큼
+// ── 덱 배치 — 무지개 아치 캐러셀 ──────────────────────────
+// 라운드 7은 6줄 × 13장 격자였다. 카드 한 장의 노출 폭이 54px 남짓이라
+// 옆 카드를 잘못 누르는 일이 잦았다. 라운드 8에서
+// **"가운데 한 장을 크게 보고 고르는"** 방식으로 바꿨다.
+//  · 78장이 위로 볼록한 원호(무지개) 위에 놓인다. 양끝은 화면 밖으로 흘러 반쯤만 보인다.
+//  · 휠·드래그·좌우 방향키로 아치가 돌고, 꼭대기 한 장만 '활성'이다.
+//  · 옆 카드를 눌러도 뽑히지 않고 가운데로 온다 — 오선택이 구조적으로 불가능하다.
+const ARC = {
+  MIN_W: 74, MAX_W: 110,   // 카드 폭 상·하한(px)
+  RATIO: 1.68,             // 원본 카드 비율 100:168
+  GAP: 0.46,               // 이웃 카드가 내어 주는 폭(카드 폭 대비) → 각도 간격을 정한다
+  ACTIVE: 1.52,            // 가운데 카드 확대 배율
+  SPAN: 1.45,              // 확대·부상이 번지는 범위(카드 장수). 작을수록 가운데만 도드라진다
+};
+/** 마지막으로 잰 아치 기하. `measure()`가 채운다. */
+const geo = { w: 380, cw: 90, ch: 151, r: 330, step: 7.2 };
 
-/** 78장을 격자형 부채로 편다. */
+/** 컨테이너 폭에 맞춰 카드 크기·반지름·각도 간격을 다시 잰다. */
+function measure() {
+  const deckEl = $('#t-deck');
+  // 뷰 전환 직전이라 아직 폭이 0이면 모바일 기준으로 잡는다.
+  const w = Math.min(deckEl.clientWidth || 380, 470);
+  const cw = Math.round(Math.min(ARC.MAX_W, Math.max(ARC.MIN_W, w * 0.235)));
+  const ch = Math.round(cw * ARC.RATIO);
+  const r = Math.round(Math.max(250, w * 0.86));
+  const step = ((cw * ARC.GAP) / r) * (180 / Math.PI);
+  Object.assign(geo, { w, cw, ch, r, step });
+
+  deckEl.style.setProperty('--cw', `${cw}px`);
+  deckEl.style.setProperty('--ch', `${ch}px`);
+  deckEl.style.setProperty('--r', `${r}px`);
+  // 히트 박스 폭 = 이웃 카드 사이의 실제 간격(호 길이). 이보다 넓히면 클릭을 서로 가로챈다.
+  deckEl.style.setProperty('--hit-w', `${(cw * ARC.GAP).toFixed(1)}px`);
+
+  // 높이 = 확대 여유 + 카드 + 아치가 내려앉는 만큼.
+  // 가장자리까지 전부 담으면 화면을 다 먹으므로 55%만 담고 나머지는 잘리게 둔다
+  // (잘리는 구간은 이미 흐려져 있어 '무지개 끝'처럼 보인다).
+  const edge = Math.min(1, (w / 2 + cw) / r);
+  const sag = r * (1 - Math.cos(Math.asin(edge)));
+  const padTop = Math.round(ch * (ARC.ACTIVE - 1)) + 14;
+  deckEl.style.setProperty('--pad-top', `${padTop}px`);
+  deckEl.style.height = `${Math.round(padTop + ch + sag * 0.55 + 8)}px`;
+}
+
+/** 78장을 아치 위에 새로 편다(순서도 다시 섞는다). */
 function buildFan() {
   const deckEl = $('#t-deck');
-  state.order = shuffledIndices(state.deck.length);
+  state.fan = shuffledIndices(state.deck.length);
+  state.active = (state.fan.length - 1) / 2;
 
-  // 컨테이너가 아직 안 그려졌으면(뷰 전환 직전) 모바일 기준으로 잡는다.
-  const avail = deckEl.clientWidth || 360;
-  const hStep = Math.max(16, (avail - CARD_W) / (COLS - 1));
+  measure();
+  deckEl.innerHTML = state.fan
+    .map((_, i) => `<button type="button" class="t-card" data-i="${i}" tabindex="-1"
+        aria-label="${i + 1}번째 카드"><i><b>${i + 1}</b></i></button>`)
+    .join('');
+  state.cardEls = $$('.t-card', deckEl);
 
-  deckEl.style.height = `${CARD_H + V_STEP * (ROWS - 1)}px`;
+  state.active = Math.round(state.active);
+  layout(false);
+  updateCounter();
+}
 
-  deckEl.innerHTML = state.order.map((deckIdx, i) => {
-    const row = Math.floor(i / COLS);
-    const col = i % COLS;
-    // 클릭 영역은 **실제로 노출된 부분**과 정확히 겹치게 잡는다.
-    // 마지막 열·마지막 줄은 가려지는 게 없으므로 카드 전체를 준다.
-    const hitW = col === COLS - 1 ? CARD_W : hStep;
-    const hitH = row === ROWS - 1 ? CARD_H : V_STEP;
-    const angle = (col - (COLS - 1) / 2) * 1.7;
-    return `<button type="button" class="t-card" data-i="${i}"
-              style="left:${(col * hStep).toFixed(1)}px; top:${row * V_STEP}px;
-                     width:${hitW.toFixed(1)}px; height:${hitH}px; z-index:${i + 1}"
-              aria-label="${i + 1}번째 카드 뽑기"
-            ><i style="--a:${angle.toFixed(2)}deg"></i></button>`;
-  }).join('');
+/** 활성 인덱스를 기준으로 78장의 위치·크기·밝기를 다시 계산한다. */
+function layout(animate = true) {
+  const deckEl = $('#t-deck');
+  deckEl.classList.toggle('no-anim', !animate);
 
-  for (const el of $$('.t-card', deckEl)) {
-    el.addEventListener('click', () => pickCard(el));
-  }
+  const active = state.active;
+  const edgeX = geo.w / 2 + geo.cw * 0.85;   // 이 밖으로 나가면 완전히 사라진다
+
+  state.cardEls.forEach((el, i) => {
+    const d = i - active;
+    const deg = d * geo.step;
+    const x = geo.r * Math.sin((deg * Math.PI) / 180);
+    const near = Math.max(0, 1 - Math.abs(d) / ARC.SPAN);   // 1=꼭대기, 0=멀리
+
+    // 가장자리에서 서서히 사라진다(t 0.72 부터 페이드).
+    const t = Math.abs(x) / edgeX;
+    const fade = t >= 1 ? 0 : t < 0.72 ? 1 : 1 - (t - 0.72) / 0.28;
+    const shown = fade > 0.02 && Math.abs(deg) < 100;
+
+    el.style.transform = `rotate(${deg.toFixed(2)}deg)`;
+    el.style.opacity = shown ? fade.toFixed(3) : '0';
+    el.style.visibility = shown ? '' : 'hidden';
+    el.style.zIndex = String(300 - Math.min(299, Math.round(Math.abs(d) * 10)));
+    el.style.setProperty('--s', (1 + (ARC.ACTIVE - 1) * near).toFixed(3));
+    el.style.setProperty('--lift', `${(-12 * near).toFixed(1)}px`);
+    el.style.setProperty('--dim', (0.72 + 0.28 * near).toFixed(3));
+    // 번호는 **가려지지 않는 바깥쪽 가장자리**에 붙인다. 이웃 카드는 중앙에 가까운
+    // 쪽이 위에 쌓이므로, 중앙 정렬로 두면 양옆 카드의 번호가 전부 가려진다.
+    el.style.setProperty('--nx', d > 0.5 ? '32%' : d < -0.5 ? '-32%' : '0%');
+  });
+
+  const cur = Math.round(active);
+  state.cardEls.forEach((el, i) => {
+    const on = i === cur;
+    el.classList.toggle('active', on);
+    el.tabIndex = on ? 0 : -1;
+    el.setAttribute('aria-label', on ? `${i + 1}번째 카드 — 다시 누르면 뽑아요` : `${i + 1}번째 카드`);
+  });
+}
+
+/** 드래그·휠처럼 연속으로 들어오는 입력은 프레임당 한 번만 그린다. */
+let layoutRaf = 0;
+function scheduleLayout() {
+  if (layoutRaf) return;
+  layoutRaf = requestAnimationFrame(() => { layoutRaf = 0; layout(false); });
+}
+
+const clampIdx = (v) => Math.max(0, Math.min(state.cardEls.length - 1, v));
+
+/** 특정 카드를 꼭대기로 굴린다. */
+function setActive(i, animate = true) {
+  state.active = clampIdx(i);
+  layout(animate);
+  updateCounter();
+}
+
+/** 지금 몇 번째 카드를 보고 있는지 + 남은 장수. */
+function updateCounter() {
+  const left = state.cardEls.length;
+  const no = left ? Math.round(state.active) + 1 : 0;
+  const noEl = $('#t-counter-no');
+  if (noEl) noEl.textContent = left ? String(no) : '–';
+  const totalEl = $('#t-counter-total');
+  if (totalEl) totalEl.textContent = `남은 ${left}장`;
+  const pickEl = $('#t-pick');
+  if (pickEl) pickEl.disabled = !left || state.picked.length >= DRAW_COUNT;
+}
+
+const prefersReduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ── 덱 조작 (휠 · 드래그 · 키보드 · 탭) ───────────────────
+/** #t-deck 은 재빌드 때 innerHTML 만 갈리므로 리스너는 한 번만 건다. */
+function bindDeck() {
+  const deckEl = $('#t-deck');
+  const locked = () => state.picked.length >= DRAW_COUNT || !state.cardEls.length;
+
+  // 휠·트랙패드 — 세로/가로 어느 쪽으로 굴려도 아치가 돈다.
+  let wheelAcc = 0;
+  deckEl.addEventListener('wheel', (e) => {
+    if (locked()) return;
+    e.preventDefault();
+    wheelAcc += Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    const n = Math.trunc(wheelAcc / 38);
+    if (!n) return;
+    wheelAcc -= n * 38;
+    setActive(Math.round(state.active) + n);
+  }, { passive: false });
+
+  // 드래그 — 가로·세로 모두 받는다(모바일에서 세로로 쓸어도 카드가 넘어가게).
+  let drag = null;
+  deckEl.addEventListener('pointerdown', (e) => {
+    if (locked()) return;
+    // 캡처 뒤에는 e.target 이 덱으로 바뀔 수 있어, 누른 카드를 지금 기억해 둔다.
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, from: state.active, moved: 0, el: e.target.closest('.t-card') };
+    try { deckEl.setPointerCapture(e.pointerId); } catch { /* 캡처 미지원 */ }
+    deckEl.classList.add('dragging');
+  });
+  deckEl.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+    const perCard = (geo.r * geo.step * Math.PI) / 180;   // 한 장 넘기는 데 필요한 픽셀
+    state.active = clampIdx(drag.from - (dx + dy) / perCard);
+    scheduleLayout();
+    updateCounter();
+  });
+  const endDrag = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { moved, el } = drag;
+    drag = null;
+    deckEl.classList.remove('dragging');
+    setActive(Math.round(state.active));
+    if (moved >= 8 || !el) return;         // 밀었으면 탭이 아니다
+    tapCard(Number(el.dataset.i));
+  };
+  deckEl.addEventListener('pointerup', endDrag);
+  deckEl.addEventListener('pointercancel', endDrag);
+
+  // 키보드로 누른 클릭(detail === 0)만 여기서 받는다 — 포인터 탭은 위에서 처리했다.
+  deckEl.addEventListener('click', (e) => {
+    if (e.detail !== 0 || locked()) return;
+    const el = e.target.closest('.t-card');
+    if (el) tapCard(Number(el.dataset.i));
+  });
+
+  deckEl.addEventListener('keydown', (e) => {
+    if (locked()) return;
+    const cur = Math.round(state.active);
+    const move = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -1, ArrowDown: 1, PageUp: -5, PageDown: 5 }[e.key];
+    if (move !== undefined) { e.preventDefault(); setActive(cur + move); focusActive(); return; }
+    if (e.key === 'Home') { e.preventDefault(); setActive(0); focusActive(); return; }
+    if (e.key === 'End') { e.preventDefault(); setActive(state.cardEls.length - 1); focusActive(); }
+  });
+}
+
+function focusActive() {
+  const el = state.cardEls[Math.round(state.active)];
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+}
+
+/** 카드 탭 — 가운데 카드면 뽑고, 아니면 가운데로 굴려 온다. */
+function tapCard(i) {
+  if (!Number.isFinite(i)) return;
+  if (i === Math.round(state.active)) pickActive();
+  else setActive(i);
 }
 
 /** 0..n-1 을 섞은 배열 (어떤 카드가 어느 자리에 있는지는 사용자에게 안 보인다). */
@@ -199,46 +374,86 @@ function shuffledIndices(n) {
   return arr;
 }
 
-/** 다시 섞기 — 카드가 중앙으로 모였다가 새 순서로 다시 펴진다. */
+/** 다시 섞기 — 카드가 가운데로 겹쳤다가 새 순서로 다시 펴진다. */
 function shuffleDeck() {
   const deckEl = $('#t-deck');
-  const cards = $$('.t-card', deckEl);
-  if (!cards.length) return;
+  if (!state.cardEls.length) return;
 
-  // 모이는 동작: 각 카드에 조금씩 다른 가로 오프셋을 줘 '섞이는' 느낌을 만든다.
-  cards.forEach((el, i) => { el.style.setProperty('--sx', `${(i % 7 - 3) * 4}px`); });
-  deckEl.classList.add('shuffling');
-
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  setTimeout(() => {
+  const rebuild = () => {
     deckEl.classList.remove('shuffling');
     state.picked = [];
-    const topic = state.topics.find((t) => t.key === state.topicKey);
-    renderSlots(topic);
+    $('#t-draw-title').textContent = '마음이 가는 카드를 세 장 골라 주세요';
+    renderSlots(state.topics.find((t) => t.key === state.topicKey));
     buildFan();
-  }, reduce ? 0 : 360);
+  };
+
+  if (prefersReduce()) { rebuild(); return; }
+  deckEl.classList.add('shuffling');
+  setTimeout(rebuild, 340);
 }
 
-/** 카드 한 장 선택. 실제 카드는 부채 순서에 묶여 있어 조작이 불가능하다. */
-function pickCard(el) {
+/** 가운데 카드를 뽑는다. 뽑힌 자리는 나머지 카드가 메운다. */
+function pickActive() {
   if (state.picked.length >= DRAW_COUNT) return;
-  if (el.classList.contains('picked')) return;
+  const idx = Math.round(state.active);
+  const el = state.cardEls[idx];
+  if (!el) return;
 
-  const fanIdx = Number(el.dataset.i);
-  const card = state.deck[state.order[fanIdx]];
+  const card = state.deck[state.fan[idx]];
   const o = state.allowReversed && randBool() ? 'r' : 'u';
-
+  const slotIdx = state.picked.length;
   state.picked.push({ id: card.id, o });
-  el.classList.add('picked');
-  el.disabled = true;
 
-  fillSlot(state.picked.length - 1);
+  flyToSlot(el, slotIdx);
+  removeCard(idx);
 
   if (state.picked.length === DRAW_COUNT) {
     $('#t-draw-title').textContent = '세 장이 모였어요';
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    setTimeout(() => reveal(), reduce ? 120 : 620);
+    setTimeout(() => reveal(), prefersReduce() ? 120 : 1000);
   }
+}
+
+/** 뽑힌 카드를 아치에서 빼고, 뒤 카드들의 번호를 당긴다. */
+function removeCard(idx) {
+  state.fan.splice(idx, 1);
+  const [el] = state.cardEls.splice(idx, 1);
+  el.remove();
+  state.cardEls.forEach((c, i) => {
+    c.dataset.i = String(i);
+    c.querySelector('b').textContent = String(i + 1);
+  });
+  state.active = clampIdx(idx);
+  layout();
+  updateCounter();
+}
+
+/** 카드가 아치에서 위로 쑥 빠져나와 슬롯에 안착하는 연출 (FLIP). */
+function flyToSlot(el, slotIdx) {
+  const slot = $(`.t-slot[data-i="${slotIdx}"] .t-slot-box`);
+  if (!slot || prefersReduce()) { fillSlot(slotIdx); return; }
+
+  const from = el.querySelector('i').getBoundingClientRect();
+  const to = slot.getBoundingClientRect();
+  if (!from.width || !to.width) { fillSlot(slotIdx); return; }
+
+  const ghost = document.createElement('div');
+  ghost.className = 't-ghost';
+  ghost.style.cssText =
+    `left:${from.left}px; top:${from.top}px; width:${from.width}px; height:${from.height}px;`;
+  document.body.appendChild(ghost);
+
+  // ① 아치에서 위로 뽑혀 나온다
+  requestAnimationFrame(() => { ghost.style.transform = 'translateY(-46px) scale(1.06)'; });
+
+  // ② 슬롯 자리로 날아가 크기를 맞춘다
+  setTimeout(() => {
+    const dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+    const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+    ghost.style.transition = 'transform .46s cubic-bezier(.5,0,.2,1), opacity .3s ease .3s';
+    ghost.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${(to.width / from.width).toFixed(3)})`;
+    ghost.style.opacity = '0';
+    setTimeout(() => { ghost.remove(); fillSlot(slotIdx); }, 430);
+  }, 300);
 }
 
 function randBool() {
@@ -254,16 +469,18 @@ function fillSlot(i) {
   slot.querySelector('.t-slot-box').innerHTML = '<div class="t-slot-card"></div>';
 }
 
-/** 알아서 뽑기 — 남은 카드 중에서 필요한 만큼 채운다. */
+/** 알아서 뽑기 — 아치를 무작위 위치로 굴린 뒤 한 장씩 순서대로 뽑는다. */
 function autoPick() {
-  const remaining = $$('.t-card').filter((el) => !el.classList.contains('picked'));
-  const need = DRAW_COUNT - state.picked.length;
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  for (let k = 0; k < need; k++) {
-    const el = remaining[Math.floor(Math.random() * remaining.length)];
-    remaining.splice(remaining.indexOf(el), 1);
-    setTimeout(() => pickCard(el), reduce ? 0 : k * 260);
-  }
+  const reduce = prefersReduce();
+  const step = () => {
+    if (state.picked.length >= DRAW_COUNT || !state.cardEls.length) return;
+    setActive(Math.floor(Math.random() * state.cardEls.length));
+    setTimeout(() => {
+      pickActive();
+      if (state.picked.length < DRAW_COUNT) setTimeout(step, reduce ? 0 : 520);
+    }, reduce ? 0 : 420);
+  };
+  step();
 }
 
 // ── 3. 공개 · 결과 ────────────────────────────────────────
@@ -357,6 +574,16 @@ function renderReading(r) {
   $('#t-prompt').addEventListener('click', onCopyPrompt);
   $('#t-share').addEventListener('click', onShare);
   $('#t-image').addEventListener('click', onSaveImage);
+
+  prewarmImage();
+}
+
+// 결과가 뜨는 순간 공유 이미지를 미리 만들어 둔다.
+// iOS 는 사용자가 버튼을 누른 '직후'에만 공유 시트를 열어 주므로,
+// 클릭한 다음에 캔버스를 그리기 시작하면 활성화가 만료돼 저장이 통째로 실패한다.
+let imageReady = null;
+function prewarmImage() {
+  imageReady = (async () => canvasToBlob(await drawTarotCard(state.reading)))().catch(() => null);
 }
 
 /** **굵게** 만 지원하는 최소 인라인 렌더러 (app.js 의 md 와 같은 취지). */
@@ -400,25 +627,31 @@ async function onShare() {
 }
 
 async function onSaveImage() {
+  const btn = $('#t-image');
+  const orig = btn ? btn.textContent : '';
   try {
-    toast('이미지를 만드는 중이에요…');
-    const canvas = await drawTarotCard(state.reading);
-    const blob = await canvasToBlob(canvas);
-    const file = new File([blob], 'tarot.png', { type: 'image/png' });
-
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: '타로 3장 리딩' });
-      return;
+    // 프리워밍이 끝나 있으면 여기서 기다리는 시간이 사실상 0 이라 iOS 활성화가 유지된다.
+    let blob = imageReady ? await imageReady : null;
+    if (!blob) {
+      if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
+      else toast('이미지를 만드는 중이에요…');
+      prewarmImage();
+      blob = await imageReady;
     }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `타로_${state.reading.topic.label}.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    toast('이미지를 저장했어요.');
+    if (!blob) throw new Error('이미지를 만들지 못했어요');
+
+    const r = state.reading;
+    const how = await deliverImage(blob, {
+      fileName: `ohaeng-tarot-${state.topicKey}.png`,
+      title: '타로 3장 리딩',
+      text: `${r.topic.label} — ${r.cards.map((c) => c.card.name).join(' · ')}`,
+    });
+    if (how === 'downloaded') toast('이미지를 저장했어요.');
+    // 'shared'(공유 시트에서 저장) · 'longpress'(안내 시트) · 'canceled' 는 별도 안내가 필요 없다.
   } catch (err) {
-    if (err && err.name === 'AbortError') return;
     toast(`이미지 저장에 실패했습니다: ${err.message}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
   }
 }
 

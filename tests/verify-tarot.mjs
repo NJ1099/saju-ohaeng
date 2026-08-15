@@ -35,8 +35,8 @@ async function newPage(opts = {}) {
   ok('메뉴 라우트 노출', await page.isVisible('#route-menu'));
   ok('사주 라우트 숨김', !(await page.isVisible('#route-saju')));
   ok('타로 라우트 숨김', !(await page.isVisible('#route-tarot')));
-  eq('메뉴 타일 2개', await page.locator('.menu-tile').count(), 2);
-  eq('타일 라벨', await page.locator('.menu-tile .mt-name').allTextContents(), ['사주', '타로']);
+  eq('메뉴 타일 3개', await page.locator('.menu-tile').count(), 3);
+  eq('타일 라벨', await page.locator('.menu-tile .mt-name').allTextContents(), ['사주', '타로', '귀인 지도']);
   eq('body data-route', await page.getAttribute('body', 'data-route'), 'menu');
   ok('뒤로가기 버튼 숨김', !(await page.isVisible('#btn-home')));
   await page.context().close();
@@ -97,13 +97,56 @@ let sharedUrl = null;
 
   // 다시 섞기가 죽지 않는지
   await page.click('#t-shuffle');
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(700);
   eq('셔플 후에도 78장', await page.locator('.t-card').count(), 78);
 
-  // 3장 선택
-  for (const i of [5, 30, 60]) {
-    await page.locator(`.t-card[data-i="${i}"]`).click();
-    await page.waitForTimeout(120);
+  // ── 아치 캐러셀 (라운드 8) ──
+  eq('활성 카드는 항상 한 장', await page.locator('.t-card.active').count(), 1);
+  const actNo = await page.locator('.t-card.active b').textContent();
+  eq('카운터가 활성 카드 번호와 같다', await page.textContent('#t-counter-no'), actNo);
+  eq('남은 장수 표기', await page.textContent('#t-counter-total'), '남은 78장');
+
+  // 가운데 카드는 이웃보다 확실히 크다 (작아서 잘못 고르던 문제의 회귀 방지)
+  // 회전한 카드는 getBoundingClientRect 가 축정렬 박스라 실제보다 넓게 나온다.
+  // 확대 배율은 --s 로 재고, 실측 폭은 회전이 0 인 활성 카드에서만 읽는다.
+  const sizes = await page.evaluate(() => {
+    const act = document.querySelector('.t-card.active');
+    const nb = document.querySelector(`.t-card[data-i="${Number(act.dataset.i) + 1}"]`);
+    const s = (el) => Number(getComputedStyle(el).getPropertyValue('--s'));
+    return { width: act.querySelector('i').getBoundingClientRect().width, active: s(act), neighbor: s(nb) };
+  });
+  ok('활성 카드가 이웃보다 1.25배 이상 크다', sizes.active >= sizes.neighbor * 1.25,
+    `${sizes.active} vs ${sizes.neighbor}`);
+  ok('활성 카드 폭이 120px 이상', sizes.width >= 120, `${Math.round(sizes.width)}px`);
+
+  // 휠로 카드가 넘어간다
+  await page.mouse.move(210, 470);
+  for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, 40); await page.waitForTimeout(60); }
+  await page.waitForTimeout(400);
+  ok('휠을 굴리면 활성 카드가 바뀐다',
+    (await page.locator('.t-card.active b').textContent()) !== actNo);
+
+  // 옆 카드를 눌러도 뽑히지 않고 가운데로만 온다 (오선택 방지)
+  const side = await page.evaluate(() => {
+    const act = document.querySelector('.t-card.active');
+    return Number(act.dataset.i) + 2;
+  });
+  await page.locator(`.t-card[data-i="${side}"]`).click();
+  await page.waitForTimeout(450);
+  eq('옆 카드 탭 → 가운데로만 이동', await page.locator('.t-slot.filled').count(), 0);
+  eq('탭한 카드가 활성이 됐다', await page.evaluate(() =>
+    Number(document.querySelector('.t-card.active').dataset.i)), side);
+
+  // 3장 선택 — 가운데 카드 탭 1장, 뽑기 버튼 2장
+  await page.locator('.t-card.active').click();
+  await page.waitForTimeout(1100);
+  eq('가운데 카드 탭 → 한 장 뽑힘', await page.locator('.t-slot.filled').count(), 1);
+  eq('뽑은 만큼 덱이 줄어든다', await page.locator('.t-card').count(), 77);
+  eq('남은 장수도 줄어든다', await page.textContent('#t-counter-total'), '남은 77장');
+
+  for (let k = 0; k < 2; k++) {
+    await page.click('#t-pick');
+    await page.waitForTimeout(1100);
   }
   eq('슬롯 3개 채워짐', await page.locator('.t-slot.filled').count(), 3);
 
@@ -217,7 +260,7 @@ let sharedUrl = null;
   await page.waitForSelector('.t-topic', { timeout: 8000 });
   await page.locator('.t-topic[data-topic="exam"]').click();
   await page.waitForSelector('#view-tarot-draw:not(.hidden)');
-  for (const i of [1, 2, 3]) { await page.locator(`.t-card[data-i="${i}"]`).click(); await page.waitForTimeout(80); }
+  for (let k = 0; k < 3; k++) { await page.click('#t-pick'); await page.waitForTimeout(120); }
   await page.waitForSelector('#view-tarot-result:not(.hidden)', { timeout: 5000 });
   eq('모션 최소화에서도 3장 공개', await page.locator('.t-spread-item').count(), 3);
   await page.context().close();
@@ -237,6 +280,40 @@ let sharedUrl = null;
   await page.waitForTimeout(250);
   ok('팝오버 노출', await page.isVisible('#term-pop'));
   ok('역방향 설명 내용', (await page.textContent('#term-pop .tp-def')).includes('나쁘다는 뜻이 아닙니다'));
+  await page.context().close();
+}
+
+// ── 10) 이미지 저장 (라운드 8) ─────────────────────────────
+// 모바일에서 "눌러도 아무 일이 없다"는 신고로 경로를 다시 짠 자리.
+// 데스크톱은 다운로드 경로를 타므로 여기서 파일이 실제로 떨어지는지 본다.
+{
+  console.log('\n[10] 이미지 저장');
+  const page = await newPage({ acceptDownloads: true });
+  await page.goto(`${BASE}/#/tarot`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.t-topic', { timeout: 8000 });
+  await page.locator('.t-topic[data-topic="career"]').click();
+  await page.waitForSelector('#view-tarot-draw:not(.hidden)');
+  await page.click('#t-auto');
+  await page.waitForSelector('#view-tarot-result:not(.hidden)', { timeout: 8000 });
+
+  let dl = null;
+  try {
+    [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 20000 }),
+      page.click('#t-image'),
+    ]);
+  } catch { /* 아래에서 실패로 기록 */ }
+
+  ok('이미지 저장 → 다운로드 발생', !!dl);
+  if (dl) {
+    const name = dl.suggestedFilename();
+    ok('PNG 파일명', /\.png$/.test(name), name);
+    // 한글 파일명은 일부 안드로이드 브라우저가 저장하다 실패한다 — ASCII 로 유지한다.
+    ok('파일명이 ASCII', /^[\x20-\x7E]+$/.test(name), name);
+    const p = await dl.path();
+    const size = p ? (await import('node:fs')).statSync(p).size : 0;
+    ok('PNG 내용이 비어 있지 않다', size > 20000, `${size} bytes`);
+  }
   await page.context().close();
 }
 

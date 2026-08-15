@@ -78,23 +78,24 @@ body[data-route="tarot"] :focus-visible { outline-color: var(--t-gold); }
 .t-switch small { display: block; font-size: 12.5px; color: var(--t-ink-3); line-height: 1.55; }
 
 /* ── 뽑기 화면 ────────────────────────────────────────── */
-.t-draw-head { padding: 20px 6px 14px; text-align: center; }
+.t-draw-head { padding: 14px 6px 8px; text-align: center; }
 .t-draw-topic {
   font-size: 12px; font-weight: 700; color: var(--t-gold);
-  margin: 0 0 7px; letter-spacing: .04em;
+  margin: 0 0 6px; letter-spacing: .04em;
 }
 .t-draw-title {
-  font-size: 19px; font-weight: 800; letter-spacing: -.02em;
-  margin: 0 0 18px; line-height: 1.4; color: var(--t-ink);
+  font-size: 18px; font-weight: 800; letter-spacing: -.02em;
+  margin: 0 0 14px; line-height: 1.4; color: var(--t-ink);
 }
 
-/* 뽑은 카드가 안착하는 세 자리 */
+/* 뽑은 카드가 안착하는 세 자리.
+ * 뽑기 화면에서는 덱이 주인공이라 슬롯은 작게 — 세로 공간을 덱에 양보한다. */
 .t-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .t-slot {
   display: flex; flex-direction: column; align-items: center; gap: 7px;
 }
 .t-slot-box {
-  width: 100%; aspect-ratio: 100 / 168;
+  width: 100%; max-width: 68px; aspect-ratio: 100 / 168;
   border-radius: 9px; border: 1.5px dashed var(--t-line);
   display: grid; place-items: center;
   color: var(--t-ink-3); font-size: 20px; font-weight: 700;
@@ -121,68 +122,142 @@ body[data-route="tarot"] :focus-visible { outline-color: var(--t-gold); }
   box-shadow: 0 4px 14px rgba(0,0,0,.45);
 }
 
-/* ── 78장 덱 (부채꼴) ─────────────────────────────────── */
+/* ── 78장 덱 (무지개 아치) ────────────────────────────────
+ * 라운드 8. 이전(격자형 부채)에는 카드 한 장이 54px 남짓이라 옆 카드를
+ * 잘못 누르는 일이 잦았다. 지금은 카드가 위로 볼록한 원호 위에 놓이고,
+ * 꼭대기 한 장만 크게 확대돼 '지금 고를 카드'를 눈으로 확정할 수 있다.
+ * 양끝은 화면 밖으로 흘러 무지개처럼 반쯤만 보인다. */
 .t-deck-wrap {
-  margin: 26px -16px 0;   /* .main 좌우 패딩을 상쇄해 전폭으로 편다 */
-  padding: 30px 16px 34px;
+  margin: 16px -16px 0;   /* .main 좌우 패딩을 상쇄해 전폭으로 편다 */
+  padding: 4px 16px 8px;
   overflow: hidden;
   background:
-    radial-gradient(120% 90% at 50% 0%, rgba(232,184,75,.07), transparent 62%),
+    radial-gradient(120% 78% at 50% 8%, rgba(232,184,75,.09), transparent 60%),
     var(--t-bg);
 }
 .t-deck {
   position: relative;
-  height: 320px;              /* JS가 줄 수에 맞춰 덮어쓴다 */
+  height: 340px;              /* JS가 아치 크기에 맞춰 덮어쓴다 */
   margin: 0 auto;
-  max-width: 460px;
+  max-width: 470px;
+  touch-action: none;         /* 덱 안에서 미는 동작은 페이지 스크롤이 아니라 카드 넘김이다 */
+  user-select: none; -webkit-user-select: none;
+  cursor: grab;
 }
+.t-deck.dragging { cursor: grabbing; }
+.t-deck:focus-visible { outline: 2px solid var(--t-gold); outline-offset: 4px; border-radius: 14px; }
 
 /* 카드 한 장.
- * ⚠️ 버튼(.t-card)은 **실제로 노출된 영역**만 차지한다. 카드 그림(> i)은
- *    그보다 크게 삐져나오지만 pointer-events 를 끈다. 이렇게 해야 뒤 카드가
- *    앞 카드의 클릭을 가로채지 않는다 — 78장을 한 줄 부채로 펴면
- *    한 장당 5px 남짓만 노출돼 사실상 마지막 카드만 눌리는 문제가 생긴다. */
+ * 버튼(.t-card)은 원호 위를 **회전만** 하고, 카드 그림(> i)이 확대·부상을 맡는다.
+ * 회전축(transform-origin)이 카드 위에서 --r 만큼 아래 — 그 점이 무지개의 중심이다.
+ * 두 역할을 한 요소에 합치면 scale 이 회전축을 기준으로 걸려 카드가 궤도를 벗어난다.
+ *
+ * ⚠️ 버튼은 **실제로 노출된 폭(--hit-w)** 만 차지하고, 카드 그림은 그보다 넓게
+ *    삐져나오되 pointer-events 를 끈다. 버튼을 카드 그림만큼 넓게 잡으면 이웃 카드가
+ *    서로의 클릭을 가로채 "누른 카드와 다른 카드가 반응하는" 문제가 다시 생긴다.
+ *    카드는 원호 위에서 위쪽이 더 벌어지므로 히트 박스도 위쪽 62% 에만 둔다. */
 .t-card {
   position: absolute;
+  left: 50%; top: var(--pad-top, 84px);
+  width: var(--hit-w, 44px); height: calc(var(--ch, 151px) * .62);
+  margin-left: calc(var(--hit-w, 44px) / -2);
   border: none; padding: 0; background: none;
+  transform-origin: 50% var(--r, 330px);
+  transition: transform .34s cubic-bezier(.2,.9,.25,1), opacity .28s ease;
   cursor: pointer;
-  transition: transform .26s cubic-bezier(.16,1,.3,1), opacity .3s ease;
-  transform: translateY(var(--y, 0));
+}
+/* 가운데 카드만은 손가락이 편하게 닿도록 히트 박스를 넓힌다.
+ * 폭은 이웃 카드의 중심선을 침범하지 않는 선(간격의 85%)까지만. */
+.t-card.active::before {
+  content: ''; position: absolute; left: 50%; bottom: 0;
+  width: calc(var(--hit-w, 44px) * 1.7); height: calc(var(--ch, 151px) * 1.5);
+  margin-left: calc(var(--hit-w, 44px) * -.85);
 }
 .t-card > i {
-  position: absolute; left: 0; top: 0;
-  width: 54px; height: 91px;
-  border-radius: 6px;
+  display: block; position: absolute;
+  left: 50%; top: 0;
+  width: var(--cw, 90px); height: var(--ch, 151px);
+  margin-left: calc(var(--cw, 90px) / -2);
+  border-radius: 8px;
   background:
     repeating-linear-gradient(45deg, rgba(232,184,75,.10) 0 3px, transparent 3px 6px),
     linear-gradient(160deg, #2A2740, #14131F);
-  box-shadow: 0 3px 10px rgba(0,0,0,.5);
+  border: 1px solid rgba(232,184,75,.22);
+  box-shadow: 0 4px 14px rgba(0,0,0,.55);
   pointer-events: none;                 /* 클릭은 언제나 자기 버튼에서만 */
   transform-origin: 50% 100%;
-  transform: rotate(var(--a, 0deg));
-  transition: box-shadow .2s ease, filter .2s ease;
+  transform: translateY(var(--lift, 0)) scale(var(--s, 1));
+  filter: brightness(var(--dim, 1));
+  transition: transform .34s cubic-bezier(.2,.9,.25,1), filter .28s ease,
+              box-shadow .28s ease, border-color .28s ease;
 }
 /* 카드 뒷면 문양 — 순수 CSS, 이미지 없음 */
 .t-card > i::after {
-  content: ''; position: absolute; inset: 6px;
-  border: 1px solid rgba(232,184,75,.34); border-radius: 3px;
+  content: ''; position: absolute; inset: 5px;
+  border: 1px solid rgba(232,184,75,.3); border-radius: 4px;
 }
-.t-card:hover, .t-card:focus-visible { --y: -14px; z-index: 200 !important; }
-.t-card:hover > i, .t-card:focus-visible > i {
-  box-shadow: 0 12px 24px rgba(0,0,0,.65);
-  filter: brightness(1.35);
+/* 카드 번호 — 몇 번째 카드인지 카드 위에서 바로 읽힌다.
+ * 원호 위에서는 카드 **위쪽**이 더 벌어져 이웃에 덜 가리므로 상단에 둔다. */
+.t-card > i > b {
+  position: absolute; left: 0; right: 0; top: 6px;
+  font-style: normal; font-size: 11px; font-weight: 800;
+  text-align: center; color: rgba(232,184,75,.78);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0,0,0,.85);
+  transform: translateX(var(--nx, 0));
+  transition: transform .34s cubic-bezier(.2,.9,.25,1);
 }
-.t-card:active { --y: -7px; }
-.t-card.picked { opacity: 0; pointer-events: none; transform: translateY(-120px) scale(.6); }
-.t-card[disabled] { cursor: default; }
+/* 가운데 카드 — 크게·밝게·골드 테두리. 여기서만 뽑힌다. */
+.t-card.active > i {
+  border-color: var(--t-gold);
+  box-shadow: 0 18px 38px rgba(0,0,0,.72), 0 0 26px rgba(232,184,75,.26);
+}
+.t-card.active > i::after { inset: 6px; border-color: rgba(232,184,75,.62); }
+.t-card.active > i > b { top: 10px; font-size: 15px; color: var(--t-gold); }
 
-/* 섞는 순간 — 카드가 가운데로 모였다 다시 퍼진다 */
+.t-deck:not(.dragging) .t-card:hover > i { filter: brightness(1.25); }
+.t-card:focus-visible { outline: none; }
+.t-card:focus-visible > i { border-color: var(--t-gold); filter: brightness(1.25); }
+
+/* 드래그 중에는 손끝을 그대로 따라와야 한다 — 전환을 끈다 */
+.t-deck.dragging .t-card, .t-deck.no-anim .t-card,
+.t-deck.dragging .t-card > i, .t-deck.no-anim .t-card > i { transition: none; }
+
+/* 섞는 순간 — 아치가 가운데로 접혔다가 새 순서로 다시 펴진다 */
 .t-deck.shuffling .t-card {
-  transition: transform .34s cubic-bezier(.5,0,.5,1);
-  transform: translate(var(--sx, 0), -8px);
+  transition: transform .32s cubic-bezier(.5,0,.5,1), opacity .32s ease;
+  transform: rotate(0deg) !important;
+  opacity: .3 !important;
 }
 
-.t-draw-actions { display: flex; gap: 10px; margin-top: 22px; }
+/* 뽑힌 카드가 아치에서 빠져나와 슬롯으로 날아가는 잔상 (JS가 위치를 계산해 붙인다) */
+.t-ghost {
+  position: fixed; z-index: 1200; pointer-events: none;
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(45deg, rgba(232,184,75,.10) 0 3px, transparent 3px 6px),
+    linear-gradient(160deg, #2A2740, #14131F);
+  border: 1px solid var(--t-gold);
+  box-shadow: 0 20px 44px rgba(0,0,0,.75), 0 0 30px rgba(232,184,75,.3);
+  transform-origin: 50% 50%;
+  transition: transform .3s cubic-bezier(.16,1,.3,1);
+}
+
+/* 카드 번호 카운터 + 뽑기 버튼 */
+.t-pickbar { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.t-counter { flex: none; min-width: 98px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+.t-counter-no {
+  font-size: 27px; font-weight: 800; color: var(--t-gold);
+  line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+}
+.t-counter-unit { font-size: 13px; font-weight: 700; color: var(--t-ink-2); }
+.t-counter-total { width: 100%; margin-top: 3px; font-size: 11.5px; color: var(--t-ink-3); }
+.t-pickbar .t-btn { flex: 1; }
+.t-btn:disabled { opacity: .45; cursor: default; }
+
+.t-hint { margin: 10px 0 0; font-size: 12px; line-height: 1.55; color: var(--t-ink-3); text-align: center; }
+
+.t-draw-actions { display: flex; gap: 10px; margin-top: 14px; }
 .t-btn {
   flex: 1; padding: 15px 12px; border-radius: 14px;
   font-family: inherit; font-size: 15px; font-weight: 700;
@@ -315,18 +390,19 @@ body[data-route="tarot"] .term {
   .t-topic { font-size: 13px; padding: 13px 4px 11px; }
   .t-spread { gap: 7px; }
   .t-card-name { font-size: 12px; }
+  .t-counter { min-width: 82px; }
+  .t-counter-no { font-size: 23px; }
 }
 
 /* ── 모션 최소화 ──────────────────────────────────────
  * 카드가 실제로 뽑히고 공개되는 흐름은 유지하되, 움직임만 없앤다. */
 @media (prefers-reduced-motion: reduce) {
   .t-card,
+  .t-card > i,
   .t-deck.shuffling .t-card,
   .menu-tile,
   .t-topic,
   .t-btn { transition: none; }
-  .t-card:hover, .t-card:focus-visible, .t-card:active { --y: 0; }
-  .t-card.picked { transform: rotate(var(--a)); }
   .t-face { animation: none; }
   .t-slot.filled .t-slot-box { animation: none; }
   .t-loading .t-spin { animation: none; }

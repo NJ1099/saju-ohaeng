@@ -8,8 +8,9 @@ import { analyzeCompatibility } from './engine/compat.js';
 import { buildPrompt, buildCompatPrompt } from './engine/promptBuilder.js';
 import { leapMonthOf, daysInLunarMonth } from './engine/lunar.js';
 import { computeDaewoon, computeSewoon } from './engine/luck.js';
+import { buildPersona } from './engine/persona.js';
 import { GLOSSARY, INDICATOR_GLOSS } from './engine/glossary.js';
-import { drawShareCard, canvasToBlob } from './share.js';
+import { drawShareCard, canvasToBlob, deliverImage } from './share.js';
 import { initRouter, onRoute, go } from './router.js';
 import {
   STEMS, BRANCHES, STEM_ELEMENT, BRANCH_ELEMENT, ELEMENTS, sipseongOf, HIDDEN_STEMS,
@@ -61,14 +62,17 @@ function init() {
 // ── 셸(메뉴·라우팅·상단바) ────────────────────────────────
 /** 라우트별 상단바 문구. 브랜드는 유지하고 부제만 바꾼다. */
 const ROUTE_META = {
-  menu: { sub: '사주 · 타로', mark: '五' },
+  menu: { sub: '사주 · 타로 · 귀인 지도', mark: '五' },
   saju: { sub: '사주 오행 분석', mark: '五' },
   tarot: { sub: '타로 3장 리딩', mark: '☾' },
+  map: { sub: '귀인 지도', mark: '五' },
+  terms: { sub: '이용약관', mark: '五' },
+  privacy: { sub: '개인정보처리방침', mark: '五' },
 };
 
 function initShell() {
-  // 메뉴 타일 → 라우트 이동
-  for (const b of $$('.menu-tile')) {
+  // 메뉴 타일·푸터 링크·약관 화면 버튼 — data-goto 를 가진 것은 모두 라우트 이동
+  for (const b of $$('[data-goto]')) {
     b.addEventListener('click', () => go(b.dataset.goto));
   }
   $('#btn-home').addEventListener('click', () => go('menu'));
@@ -324,6 +328,16 @@ function runSolo([input]) {
   state.shareUrl = buildShareUrl([input], 'solo');
   state.shareText = `${saju.input.name ? saju.input.name + '님의 ' : '내 '}사주 오행 분석 — ${reading.typeLabel}`;
   renderResult(saju, a, reading, { daewoon, sewoon }, summary, weakness, compat);
+  prewarmShareImage();
+}
+
+// 결과가 뜨는 순간 공유 이미지를 미리 만들어 둔다.
+// iOS 는 사용자가 버튼을 누른 '직후'에만 공유 시트를 열어 주므로, 클릭 뒤에 캔버스를
+// 그리기 시작하면 활성화가 만료돼 저장이 통째로 실패한다. (라운드 8)
+let imageReady = null;
+function prewarmShareImage() {
+  imageReady = (async () => canvasToBlob(await drawShareCard(state.lastSaju, state.lastAnalyze)))()
+    .catch(() => null);
 }
 
 function runCouple(inputs) {
@@ -342,6 +356,7 @@ function runCouple(inputs) {
   state.lastPair = pair; state.lastCompat = compat;
   state.lastSaju = pair[0].saju; state.lastAnalyze = pair[0].a;
   state.lastReading = null; state.lastLuck = null;
+  imageReady = null;   // 궁합은 카드 렌더러가 없다 — 앞 결과의 이미지를 물려주면 안 된다
   state.shareUrl = buildShareUrl(inputs, 'couple');
   state.shareText = `${compat.names.a} × ${compat.names.b} 사주 궁합 — ${compat.score}점 · ${compat.grade.label}`;
   renderCouple(compat, pair);
@@ -380,6 +395,8 @@ function renderResult(saju, a, reading, luck, summary, weakness, compat) {
       <div class="result-type">${typeHtml(reading.typeLabel)}</div>
       <div class="result-birth">${birthLine}</div>
     </div>
+
+    ${personaHtml(buildPersona(saju))}
 
     <div class="card fade-in">
       <p class="sec-title">사주 ${termSpan('원국', '원국')} · 만세력</p>
@@ -889,24 +906,56 @@ async function onShareImage() {
   if (btn) { btn.disabled = true; btn.textContent = '이미지 만드는 중…'; }
   else toast('이미지 만드는 중…');
   try {
-    const cv = await drawShareCard(state.lastSaju, state.lastAnalyze);
-    const blob = await canvasToBlob(cv);
-    const fname = `사주-${state.lastSaju.input.name || '결과'}.png`;
-    const file = new File([blob], fname, { type: 'image/png' });
+    // 프리워밍이 끝나 있으면 대기 시간이 사실상 0 이라 iOS 공유 시트가 열린다.
+    let blob = imageReady ? await imageReady : null;
+    if (!blob) { prewarmShareImage(); blob = await imageReady; }
+    if (!blob) throw new Error('canvas');
     closeShareSheet();
-    // 모바일: 파일 공유 → 카톡/텔레그램/사진 저장
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: '내 사주 오행 분석', text: state.shareText }); return; }
-      catch (e) { if (e && e.name === 'AbortError') return; }
-    }
-    // PC/미지원: 다운로드
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = fname;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-    toast('이미지를 저장했어요 🖼️');
+
+    // 파일명은 ASCII 로 — 일부 안드로이드 브라우저가 한글 파일명을 저장하다 실패한다.
+    const how = await deliverImage(blob, {
+      fileName: `ohaeng-saju-${state.lastSaju.solar.year}${String(state.lastSaju.solar.month).padStart(2, '0')}${String(state.lastSaju.solar.day).padStart(2, '0')}.png`,
+      title: '내 사주 오행 분석',
+      text: state.shareText,
+    });
+    if (how === 'downloaded') toast('이미지를 저장했어요 🖼️');
   } catch { toast('이미지 생성에 실패했어요. 다시 시도해 주세요.'); }
   finally { if (btn) { btn.disabled = false; btn.textContent = orig; } }
+}
+
+/**
+ * 생년월일 한 줄 해석 카드 (라운드 8).
+ * 원국 표를 읽기 전에 "나는 어떤 결의 사람인가"를 먼저 잡아 준다.
+ */
+function personaHtml(p) {
+  return `
+    <div class="persona-card fade-in">
+      <div class="persona-top">
+        <span class="persona-emoji" aria-hidden="true">${p.emoji}</span>
+        <div class="persona-label">
+          <b>${esc(p.label)}</b>
+          <small>${esc(p.stem)}(${esc(p.stemImage.hanja)}) 일간 · ${esc(p.season)}에 태어남</small>
+        </div>
+      </div>
+      <p class="persona-tagline">${esc(p.tagline)}</p>
+      <div class="persona-traits chips">
+        ${p.traits.map((t) => `<span class="chip on">${esc(t)}</span>`).join('')}
+      </div>
+      <p class="persona-desc">${esc(p.desc)}</p>
+      <div class="persona-stance">
+        <b>${esc(p.season)}에 태어난 ${esc(p.stemImage.short)} — ${esc(p.stance.label)}</b>
+        <p>${esc(p.stance.line)} ${esc(p.stance.advice)}</p>
+      </div>
+      <details class="persona-more">
+        <summary>이 결이 가진 그늘도 볼게요</summary>
+        <p>${esc(p.caution)}</p>
+      </details>
+      <p class="persona-note">
+        일간을 자연물에 빗대 읽는 <span class="term" data-term="물상론">물상론</span>과
+        태어난 달의 기운(<span class="term" data-term="조후">조후</span>)을 겹쳐 본 첫인상이에요.
+        정밀한 판정은 아래 격국·용신에서 이어집니다.
+      </p>
+    </div>`;
 }
 
 function birthText(s) {

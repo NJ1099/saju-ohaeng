@@ -9,7 +9,7 @@
 //    곧바로 사주로 보낸다 — 하위호환이 깨지면 안 된다.
 // ============================================================
 
-export const ROUTES = ['menu', 'saju', 'tarot'];
+export const ROUTES = ['menu', 'saju', 'tarot', 'map', 'terms', 'privacy'];
 
 const listeners = [];
 let current = null;

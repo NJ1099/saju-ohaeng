@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "serve": "node server.js",
-    "test": "node tests/manse.test.mjs && node tests/theory.test.mjs && node tests/tarot.test.mjs",
+    "test": "node tests/manse.test.mjs && node tests/theory.test.mjs && node tests/tarot.test.mjs && node tests/persona.test.mjs",
     "test:manse": "node tests/manse.test.mjs",
     "test:theory": "node tests/theory.test.mjs",
     "test:tarot": "node tests/tarot.test.mjs",
-    "test:ui": "node tests/verify-features.mjs && node tests/verify-compat.mjs && node tests/verify-tarot.mjs",
-    "fetch:tarot": "node scripts/fetch-tarot-images.mjs"
+    "test:ui": "node tests/verify-features.mjs && node tests/verify-compat.mjs && node tests/verify-tarot.mjs && node tests/verify-map.mjs",
+    "fetch:tarot": "node scripts/fetch-tarot-images.mjs",
+    "test:persona": "node tests/persona.test.mjs"
   },
   "license": "MIT",
   "devDependencies": {
