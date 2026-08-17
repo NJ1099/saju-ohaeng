@@ -909,9 +909,48 @@ body[data-route="tarot"] .foot-dot { color: #4A4654; }
 .gm-field { display: flex; flex-direction: column; gap: 8px; }
 .gm-field > span { font-size: 13.5px; font-weight: 700; color: var(--ink-2); }
 .gm-field em { font-style: normal; font-weight: 500; color: var(--ink-4); font-size: 12.5px; }
-.gm-row { display: flex; gap: 8px; }
-.gm-row .select { flex: 1; min-width: 0; }
-.gm-check { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ink-3); }
+/* 생년월일·시간 고르기 — 칸 여러 개를 하나의 박스로 묶는다.
+ * native <select> 를 그대로 두면 각진 UA 테두리·작은 글씨가 나와, 같은 폼의 이름 입력
+ * (둥근 14px)·세그먼트 컨트롤과 확연히 겉돈다. 테두리는 래퍼가 한 번만 그리고
+ * 칸 사이는 얇은 선으로 나눠, 세그먼트 컨트롤과 같은 '한 덩어리' 결을 맞춘다. */
+.gm-picker {
+  display: flex; align-items: stretch;
+  border: 1.5px solid var(--border); background: var(--surface-2);
+  border-radius: var(--r-md); overflow: hidden;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.gm-picker:focus-within {
+  border-color: var(--accent); background: #fff;
+  box-shadow: 0 0 0 3px rgba(49,130,246,.12);
+}
+.gm-picker .select {
+  flex: 1; min-width: 0;
+  border: none; border-radius: 0; background-color: transparent;
+  padding: 15px 25px 15px 13px;
+  font-family: inherit; font-size: 15px; font-weight: 700; color: var(--ink);
+  background-position: right 7px center; cursor: pointer;
+}
+.gm-picker .select + .select { border-left: 1px solid var(--border-soft); }
+.gm-picker .select:disabled { color: var(--ink-5); cursor: default; opacity: .75; }
+.gm-picker .select:focus { outline: none; }
+.gm-picker .select:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; border-radius: 10px; }
+
+.gm-check {
+  display: flex; align-items: center; gap: 8px; padding-left: 2px;
+  font-size: 13px; color: var(--ink-3); cursor: pointer;
+}
+/* 네이티브 체크박스는 각진 사각형이라 둥근 폼 사이에서 혼자 튄다 — 모서리를 맞춰 그린다. */
+.gm-check input {
+  appearance: none; -webkit-appearance: none;
+  flex: none; width: 19px; height: 19px; margin: 0;
+  border: 1.5px solid var(--border); border-radius: 6px; background: var(--surface);
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.gm-check input:checked {
+  border-color: var(--accent);
+  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 10.4l3.4 3.4L15 7' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 13px no-repeat;
+}
+.gm-check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .gm-more summary {
   font-size: 13.5px; font-weight: 700; color: var(--ink-3);
   cursor: pointer; padding: 6px 0; list-style: none;
@@ -919,7 +958,7 @@ body[data-route="tarot"] .foot-dot { color: #4A4654; }
 .gm-more summary::-webkit-details-marker { display: none; }
 .gm-more summary::after { content: ' ▾'; font-size: 11px; }
 .gm-more[open] summary::after { content: ' ▴'; }
-.gm-more .gm-row { margin-top: 8px; }
+.gm-more .gm-picker { margin-top: 10px; }
 .gm-hint { margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--ink-4); }
 .gm-privacy { margin: 0; font-size: 11.5px; line-height: 1.65; color: var(--ink-4); }
 .gm-inline-link {

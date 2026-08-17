@@ -222,7 +222,7 @@ function formHtml(prefix, { needName = true } = {}) {
     </div>
     <div class="gm-field">
       <span>생년월일</span>
-      <div class="gm-row">
+      <div class="gm-picker">
         <select id="${prefix}-year" class="select" aria-label="년">${opts(years, (y) => `${y}년`, 1995)}</select>
         <select id="${prefix}-month" class="select" aria-label="월">${opts(range(1, 12), (m) => `${m}월`, 1)}</select>
         <select id="${prefix}-day" class="select" aria-label="일">${opts(range(1, 31), (d) => `${d}일`, 1)}</select>
@@ -233,7 +233,7 @@ function formHtml(prefix, { needName = true } = {}) {
     </div>
     <details class="gm-more">
       <summary>태어난 시간을 알아요 <em>(몰라도 괜찮아요)</em></summary>
-      <div class="gm-row">
+      <div class="gm-picker">
         <select id="${prefix}-hour" class="select" aria-label="시">
           <option value="">시간 미상</option>
           ${opts(range(0, 23), (h) => `${String(h).padStart(2, '0')}시`, -1)}
@@ -444,6 +444,8 @@ function bind() {
   for (const seg of $$('#map-root .segmented')) bindSegmented(seg);
   bindLeapToggle('gm-h');
   bindLeapToggle('gm-g');
+  bindMinuteToggle('gm-h');
+  bindMinuteToggle('gm-g');
 
   $('#gm-host-form')?.addEventListener('submit', onCreateMap);
   $('#gm-guest-form')?.addEventListener('submit', onJoin);
@@ -476,6 +478,15 @@ function bindLeapToggle(prefix) {
   if (!y || !m) return;
   y.addEventListener('change', () => refreshLeap(prefix));
   m.addEventListener('change', () => refreshLeap(prefix));
+}
+
+/** 시간 미상이면 분은 쓰이지 않는다(readForm 이 null 로 버린다) — 고를 수 있게 두면 오해를 준다. */
+function bindMinuteToggle(prefix) {
+  const h = $(`#${prefix}-hour`), m = $(`#${prefix}-min`);
+  if (!h || !m) return;
+  const sync = () => { m.disabled = h.value === ''; };
+  h.addEventListener('change', sync);
+  sync();
 }
 
 function refreshLeap(prefix) {

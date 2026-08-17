@@ -164,6 +164,8 @@ const ARC = {
   ACTIVE: 1.52,            // 가운데 카드 확대 배율
   SPAN: 1.45,              // 확대·부상이 번지는 범위(카드 장수). 작을수록 가운데만 도드라진다
 };
+/** 드래그 감도 — 1 이면 손끝과 카드가 1:1, 낮출수록 같은 거리로 더 많이 돈다. */
+const DRAG_GAIN = 0.62;
 /** 마지막으로 잰 아치 기하. `measure()`가 채운다. */
 const geo = { w: 380, cw: 90, ch: 151, r: 330, step: 7.2 };
 
@@ -289,14 +291,17 @@ function bindDeck() {
   const locked = () => state.picked.length >= DRAW_COUNT || !state.cardEls.length;
 
   // 휠·트랙패드 — 세로/가로 어느 쪽으로 굴려도 아치가 돈다.
+  // WHEEL_PX 는 카드 한 장을 넘기는 데 필요한 스크롤 양. 마우스 휠 한 노치(≈100px)에
+  // 네 장쯤 넘어가는 감도다. 더 낮추면 트랙패드에서 통제가 안 된다.
+  const WHEEL_PX = 22;
   let wheelAcc = 0;
   deckEl.addEventListener('wheel', (e) => {
     if (locked()) return;
     e.preventDefault();
     wheelAcc += Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-    const n = Math.trunc(wheelAcc / 38);
+    const n = Math.trunc(wheelAcc / WHEEL_PX);
     if (!n) return;
-    wheelAcc -= n * 38;
+    wheelAcc -= n * WHEEL_PX;
     setActive(Math.round(state.active) + n);
   }, { passive: false });
 
@@ -313,7 +318,9 @@ function bindDeck() {
     if (!drag || e.pointerId !== drag.id) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
-    const perCard = (geo.r * geo.step * Math.PI) / 180;   // 한 장 넘기는 데 필요한 픽셀
+    // 한 장 넘기는 데 필요한 픽셀. 호 길이 그대로 쓰면 78장을 훑는 데 손이 너무 많이 가서
+    // DRAG_GAIN 만큼 짧게 잡는다(= 같은 거리로 더 많이 돈다).
+    const perCard = ((geo.r * geo.step * Math.PI) / 180) * DRAG_GAIN;
     state.active = clampIdx(drag.from - (dx + dy) / perCard);
     scheduleLayout();
     updateCounter();
@@ -340,7 +347,7 @@ function bindDeck() {
   deckEl.addEventListener('keydown', (e) => {
     if (locked()) return;
     const cur = Math.round(state.active);
-    const move = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -1, ArrowDown: 1, PageUp: -5, PageDown: 5 }[e.key];
+    const move = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -1, ArrowDown: 1, PageUp: -8, PageDown: 8 }[e.key];
     if (move !== undefined) { e.preventDefault(); setActive(cur + move); focusActive(); return; }
     if (e.key === 'Home') { e.preventDefault(); setActive(0); focusActive(); return; }
     if (e.key === 'End') { e.preventDefault(); setActive(state.cardEls.length - 1); focusActive(); }
