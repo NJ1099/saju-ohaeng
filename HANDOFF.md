@@ -9,6 +9,10 @@
 - 사용자 요청 2건짜리 소규모 라운드. 기능 추가 없음, 조작감·시각 정돈만.
 - 배포 저장소 `NJ1099/saju-ohaeng` `a7f8dad` → `sajumoya.vercel.app` 반영 확인.
 - 검증: 단위 **6,079 PASS** · Playwright UI **148 PASS** · **프로덕션 스모크 113 PASS**.
+- 업데이트 요약을 텔레그램 채널로 발송함(message_id 187).
+  ⚠️ **채널 이름이 "코딩으로 이것저것 만드는거 기록하는 방" → "리어카 바이브코딩 기록실" 로 바뀌었다.**
+  chat_id 는 그대로라 발송에는 영향 없다. 토큰·chat_id 쌍은 라운드 8 메모와 동일
+  (`Seed-ledger-main/.env` 의 `TELEGRAM_NEWS_BOT_TOKEN` + `TELEGRAM_NEWS_CHAT_ID`).
 - 상세는 아래 "라운드 9" 절.
 
 ---
