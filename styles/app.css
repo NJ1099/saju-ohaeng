@@ -290,6 +290,12 @@ button { font-family: inherit; cursor: pointer; }
   transition: transform .12s;
 }
 .btn-prompt:active { transform: scale(.985); }
+/* 두 번째 프롬프트(명리 관법 비교) — 첫 버튼과 무게를 구분한다 (라운드 10) */
+.btn-prompt.alt {
+  background: var(--surface); color: var(--ink);
+  border: 1.5px solid var(--ink); padding: 14px 16px;
+  font-size: 14px; line-height: 1.45; text-align: center;
+}
 .btn-ghost { width: 100%; border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 15px; background: var(--surface); color: var(--ink-2); font-size: 15px; font-weight: 700; }
 
 .section-gap { height: 14px; }
@@ -571,6 +577,32 @@ button { font-family: inherit; cursor: pointer; }
 .th-desc { font-size: 13px; line-height: 1.62; color: var(--ink-2); margin: 0 0 5px; }
 .th-basis { font-size: 11px; color: var(--ink-4); line-height: 1.55; margin: 7px 0 0; }
 .th-list { margin: 0; padding-left: 17px; display: flex; flex-direction: column; gap: 4px; }
+
+/* '쉽게 말하면' 한 줄 — 용어를 몰라도 뜻이 먼저 읽히게 각 이론 블록 맨 위에 둔다 (라운드 10) */
+.th-plain {
+  font-size: 12.5px; line-height: 1.66; color: var(--ink-2);
+  background: var(--surface); border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0; padding: 8px 11px; margin: 0 0 9px;
+}
+.th-plain em { font-style: normal; font-weight: 800; color: var(--accent-ink); margin-right: 6px; }
+.th-plain b { font-weight: 800; color: var(--ink); }
+
+/* 용신 세 관법 비교 — 억부·조후·격국은 서로 다른 기준이라 나란히 놓고 본다 */
+.yong-grid { display: flex; flex-direction: column; gap: 7px; margin: 0 0 9px; }
+.yong-row {
+  display: grid; grid-template-columns: 44px 1fr; gap: 4px 10px;
+  align-items: baseline;
+  background: var(--surface); border-radius: 10px; padding: 9px 11px;
+}
+.yong-tag {
+  grid-row: span 2;
+  font-size: 11px; font-weight: 800; color: var(--ink-4);
+  border: 1px solid var(--border-soft); border-radius: 999px;
+  padding: 3px 0; text-align: center; align-self: center;
+}
+.yong-row b { font-size: 14px; font-weight: 800; color: var(--ink); letter-spacing: -.01em; }
+.yong-row small { font-size: 11.5px; line-height: 1.5; color: var(--ink-4); }
+.yong-row small b { font-size: inherit; color: var(--ink-2); }
 .th-list li { font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
 
 .unseong-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }

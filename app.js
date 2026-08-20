@@ -5,7 +5,7 @@ import { computeSaju, pillarsText } from './engine/saju.js';
 import { analyze } from './engine/analyze.js';
 import { buildReading, buildSimpleSummary, buildElementWeakness, buildCompatibility } from './engine/reading.js';
 import { analyzeCompatibility } from './engine/compat.js';
-import { buildPrompt, buildCompatPrompt } from './engine/promptBuilder.js';
+import { buildPrompt, buildCompatPrompt, buildTheoryPrompt } from './engine/promptBuilder.js';
 import { leapMonthOf, daysInLunarMonth } from './engine/lunar.js';
 import { computeDaewoon, computeSewoon } from './engine/luck.js';
 import { buildPersona } from './engine/persona.js';
@@ -460,6 +460,7 @@ function renderResult(saju, a, reading, luck, summary, weakness, compat) {
 
     <div class="actions fade-in">
       <button class="btn-prompt" id="btn-copy">✦ 이 원국으로 GPT·Claude에 깊이 물어보기 (프롬프트 복사)</button>
+      <button class="btn-prompt alt" id="btn-copy-theory">☯ 명리 관법으로 깊이 풀어보기 — 자평진전·적천수·궁통보감 비교</button>
       <div class="actions-row">
         <button class="btn-ghost" id="btn-share">↗ 공유하기</button>
         <button class="btn-ghost" id="btn-save">🖼️ 이미지 저장</button>
@@ -470,6 +471,7 @@ function renderResult(saju, a, reading, luck, summary, weakness, compat) {
   `;
 
   $('#btn-copy').addEventListener('click', copyPrompt);
+  $('#btn-copy-theory').addEventListener('click', copyTheoryPrompt);
   $('#btn-again').addEventListener('click', restart);
   $('#btn-share').addEventListener('click', onShareLink);
   $('#btn-save').addEventListener('click', onShareImage);
@@ -725,44 +727,72 @@ function compatHtml(c) {
 }
 
 // ── 사주 깊이 보기 (격국·용신·조후·통근·십이운성·신살) ──────
+// 라운드 10 — 용신을 '억부·조후·격국' 세 관법으로 나눠 보여준다.
+//   한 배열로 합쳐 내면 어느 관법의 결론도 아닌 값이 된다(engine/theory.js 6절 참조).
+//   블록마다 맨 위에 '쉽게 말하면' 한 줄을 둬서, 용어를 몰라도 뜻이 먼저 읽히게 했다.
 function theoryHtml(a) {
   const t = a.theory;
   const el = (e) => `<span class="txt-${e}">${e}(${esc({ 목: '木', 화: '火', 토: '土', 금: '金', 수: '水' }[e])})</span>`;
   const sinsal = t.sinsal.filter((s) => s.present);
+  const plain = (s) => `<p class="th-plain"><em>쉽게 말하면</em> ${s}</p>`;
 
   const gyeok = `<div class="th-block">
     <div class="th-head"><span class="th-key">${termSpan('격국', '격국(格局)')}</span><b>${esc(t.gyeokguk.name)}</b></div>
+    ${plain('타고난 <b>기본 유형</b>이에요. 어떤 방식으로 살아갈 때 가장 편하고 힘이 붙는 사람인지를 봅니다.')}
     <p class="th-desc">${esc(t.gyeokguk.desc)}</p>
     <p class="th-basis">${esc(t.gyeokguk.basis)} · ${esc(t.gyeokguk.note)}</p>
   </div>`;
 
+  const y = t.yongsin;
+  const g = y.gyeokguk;
+  const yongRow = (tag, val, desc) => `<div class="yong-row">
+      <span class="yong-tag">${esc(tag)}</span>
+      <b>${val}</b>
+      <small>${desc}</small>
+    </div>`;
+
   const yong = `<div class="th-block">
-    <div class="th-head"><span class="th-key">${termSpan('용신', '용신(用神) 후보')}</span><b>${t.yongsin.primary.map(el).join(' · ')}</b></div>
-    <p class="th-desc">${esc(t.yongsin.reason)}</p>
-    ${t.yongsin.johuFirst ? `<p class="th-desc">${esc(t.johu.summary)}</p>` : ''}
-    <p class="th-basis">덜 필요한 기운 ${t.yongsin.avoid.map((e) => e).join('·')} · ${esc(t.yongsin.note)}</p>
+    <div class="th-head"><span class="th-key">${termSpan('용신', '용신(用神)')}</span><b>${
+      y.common.length ? y.common.map(el).join(' · ') : '관법마다 다름'
+    }</b></div>
+    ${plain('내 사주에 <b>보약</b>이 되는 기운이에요. 다만 무엇을 보약으로 볼지는 <b>보는 방법(관법)에 따라 달라집니다</b> — 그래서 셋을 따로 보여드려요.')}
+    <div class="yong-grid">
+      ${yongRow('억부', y.eokbu.map(el).join(' · ') || '—',
+        '내 힘이 세면 덜어 주고, 약하면 보태 주는 기준')}
+      ${yongRow('조후', y.johuNeed.length ? y.johuNeed.map(el).join(' · ') : '급하지 않아요',
+        '원국의 추위·더위를 푸는 기준 (『궁통보감』 계열)')}
+      ${g && g.need.length ? yongRow('격국', g.need.map(el).join(' · '),
+        `내 격을 ${g.kind === '길' ? '<b>살려</b>' : '<b>눌러</b>'} 쓰는 글자 = 상신(相神) (『자평진전』 계열)`) : ''}
+    </div>
+    <p class="th-desc">${esc(y.compare)}</p>
+    ${g && g.reason ? `<p class="th-desc">${esc(g.reason)}</p>` : ''}
+    <p class="th-basis">억부 기준으로 덜 필요한 기운 ${y.avoid.join('·')} · ${esc(y.note)}</p>
   </div>`;
 
   const johu = `<div class="th-block">
     <div class="th-head"><span class="th-key">${termSpan('조후', '조후(調候)')}</span><b>${esc(t.johu.tempLabel)} · ${esc(t.johu.humidLabel)}</b></div>
+    ${plain('내 사주의 <b>온도와 습도</b>예요. 겨울에 난 사람은 춥고 여름에 난 사람은 뜨거운데, 너무 치우치면 반대 기운이 숨통을 틔워 줍니다.')}
     <p class="th-desc">${esc(t.johu.summary)}</p>
   </div>`;
 
   const root = `<div class="th-block">
     <div class="th-head"><span class="th-key">${termSpan('통근', '통근(通根)')}</span><b>${esc(a.strength.label)}</b></div>
+    ${plain('내 기운이 <b>든든한 편인지(신강) 여린 편인지(신약)</b>예요. 좋고 나쁨이 아니라, 힘을 <b>쓰는 방식</b>이 달라집니다. 글자 개수가 아니라 <b>뿌리(통근)</b>로 봅니다.')}
     <ul class="th-list">${a.strength.detail.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>
     <p class="th-basis">일간 세력 ${a.strength.supportRatio}% · 뿌리 ${a.strength.rootCount}곳 · ${esc(a.strength.note)}</p>
   </div>`;
 
   const stages = `<div class="th-block">
     <div class="th-head"><span class="th-key">${termSpan('십이운성', '십이운성(十二運星)')}</span></div>
+    ${plain('각 자리에서 내 기운이 <b>어느 국면</b>에 있는지예요. 태어남 → 자람 → 절정 → 저묾의 12단계이고, <b>좋고 나쁨이 아닙니다</b>.')}
     <div class="unseong-row">${t.stages.map((s) => `
       <div class="us-cell"><span class="us-pos">${esc(s.pos)}지 ${esc(s.branch)}</span><b>${esc(s.unseong)}</b></div>`).join('')}</div>
-    <p class="th-basis">일간이 각 지지에서 갖는 기세의 단계예요. 좋고 나쁨이 아니라 에너지의 국면을 봅니다.</p>
+    <p class="th-basis">일간이 각 지지에서 갖는 기세의 단계예요.</p>
   </div>`;
 
   const sinsalBlock = `<div class="th-block">
     <div class="th-head"><span class="th-key">${termSpan('신살', '신살(神殺)')}</span><b>${sinsal.length ? `${sinsal.length}개 성립` : '두드러진 신살 없음'}</b></div>
+    ${plain('특정 글자 조합에 붙는 <b>별명</b>이에요. 명리에서 신살은 <b>보조자료</b>일 뿐, 판단의 중심이 아닙니다 — 위의 격국·용신·통근이 본류예요.')}
     ${sinsal.length ? `<div class="sinsal-wrap">${sinsal.map((s) => `
       <div class="sinsal-card">
         <div class="sinsal-name">${esc(s.name)}<em>${esc(s.hanja)}</em>${s.where.length ? `<span>${esc(s.where.join('·'))}</span>` : ''}</div>
@@ -774,13 +804,12 @@ function theoryHtml(a) {
 
   const rels = t.relations.length ? `<div class="th-block">
     <div class="th-head"><span class="th-key">${termSpan('형충회합', '형충회합(刑沖會合)')}</span><b>${t.relations.length}건</b></div>
+    ${plain('내 사주 안 글자끼리 맺는 <b>관계</b>예요. 합(合)은 서로 묶이는 힘, 충(沖)·형(刑)은 흔들어 <b>변화</b>를 만드는 힘입니다. 나쁜 게 아니라 성질이 다른 거예요.')}
     <div class="rel-chips">${t.relations.map((r) => `<span class="rel-chip rel-${r.tone}">${esc(r.label)}<em>${esc(r.from)}·${esc(r.to)}</em></span>`).join('')}</div>
-    <p class="th-basis">원국 안 글자끼리 맺는 관계예요. 합(合)은 묶이고, 충·형은 흔들어 변화를 만들어요.</p>
   </div>` : '';
 
   return gyeok + yong + johu + root + stages + sinsalBlock + rels;
 }
-
 function daewoonHtml(d) {
   return `<div class="daewoon" role="list">${d.list.map((x, i) => {
     const cur = i === d.currentIndex;
@@ -1068,6 +1097,34 @@ async function copyPrompt() {
     fallbackCopy();
   }
 }
+/**
+ * 명리 관법 비교 프롬프트 복사 (라운드 10).
+ * 기존 '깊이 물어보기'가 영성·심리 상담 결이라면, 이쪽은 고전 명리 관법 비교다.
+ * 앱이 계산한 원국·격국·세 용신을 그대로 실어 보내 LLM 이 만세력을 다시 뽑지 않게 한다.
+ */
+async function copyTheoryPrompt() {
+  const btn = $('#btn-copy-theory');
+  const orig = btn.textContent;
+  let full;
+  try {
+    const res = await fetch('./data/theory-prompt-template.txt');
+    const template = await res.text();
+    full = buildTheoryPrompt(state.lastSaju, template, state.lastAnalyze, state.lastLuck);
+  } catch {
+    toast('프롬프트 파일을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(full);
+    toast('명리 관법 프롬프트를 복사했어요! GPT·Claude에 붙여넣어 보세요 📋');
+    btn.textContent = '✓ 복사됨 — GPT·Claude에 붙여넣기';
+    setTimeout(() => { btn.textContent = orig; }, 2600);
+  } catch {
+    // 클립보드 API 가 막힌 환경 — 텍스트를 펼쳐 직접 복사하게 한다
+    fallbackCopyTheory(full);
+  }
+}
+
 /** 궁합 프롬프트 복사 */
 async function copyCompatPrompt() {
   const btn = $('#btn-copy');
@@ -1108,6 +1165,17 @@ async function fallbackCopy() {
   ta.value = full; ta.style.cssText = 'position:fixed;top:10%;left:5%;width:90%;height:70%;z-index:200;font-size:12px;padding:12px';
   document.body.appendChild(ta); ta.select();
   try { document.execCommand('copy'); toast('프롬프트를 복사했어요 📋'); } catch { toast('아래 텍스트를 길게 눌러 복사하세요'); }
+  setTimeout(() => ta.remove(), 4000);
+}
+
+/** 클립보드 API 가 막힌 환경에서 텍스트를 펼쳐 직접 복사하게 한다. */
+function fallbackCopyTheory(full) {
+  const ta = document.createElement('textarea');
+  ta.value = full;
+  ta.style.cssText = 'position:fixed;top:10%;left:5%;width:90%;height:70%;z-index:200;font-size:12px;padding:12px';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast('명리 관법 프롬프트를 복사했어요 📋'); }
+  catch { toast('아래 텍스트를 길게 눌러 복사하세요'); }
   setTimeout(() => ta.remove(), 4000);
 }
 

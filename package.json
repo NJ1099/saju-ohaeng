@@ -9,9 +9,10 @@
     "test:manse": "node tests/manse.test.mjs",
     "test:theory": "node tests/theory.test.mjs",
     "test:tarot": "node tests/tarot.test.mjs",
-    "test:ui": "node tests/verify-features.mjs && node tests/verify-compat.mjs && node tests/verify-tarot.mjs && node tests/verify-map.mjs",
+    "test:ui": "node tests/verify-features.mjs && node tests/verify-compat.mjs && node tests/verify-tarot.mjs && node tests/verify-map.mjs && node tests/verify-pick.mjs",
     "fetch:tarot": "node scripts/fetch-tarot-images.mjs",
-    "test:persona": "node tests/persona.test.mjs"
+    "test:persona": "node tests/persona.test.mjs",
+    "test:pick": "node tests/verify-pick.mjs"
   },
   "license": "MIT",
   "devDependencies": {

@@ -159,3 +159,72 @@ export function buildTarotPrompt(templateText, reading) {
 
   return `${templateText.trim()}\n${input}\n`;
 }
+
+/**
+ * 명리 정통 관법 비교 프롬프트 (라운드 10).
+ * 앱이 이미 산출한 원국·이론 판정을 **계산 결과로 넘겨** LLM 이 만세력을 다시 뽑다가
+ * 틀리는 것을 원천 차단한다. LLM 은 해석에만 집중하면 된다.
+ * @param {object} saju computeSaju 결과
+ * @param {string} templateText data/theory-prompt-template.txt 내용
+ * @param {object} a analyze 결과 (theory · strength 포함)
+ * @param {object} [luck] {daewoon, sewoon}
+ */
+export function buildTheoryPrompt(saju, templateText, a, luck = null) {
+  const t = pillarsText(saju, true);
+  const th = a.theory;
+  const y = th.yongsin;
+  const el = (list) => (list && list.length ? list.join('·') : '없음');
+
+  const lines = [
+    '',
+    '---',
+    '',
+    '# 입력 — 앱이 천문 계산으로 산출한 값 (다시 계산하지 마십시오)',
+    '',
+    '## 1. 원국',
+    `성별: ${saju.input.gender || '미입력'}`,
+    saju.input.name ? `이름: ${saju.input.name}` : null,
+    `년주: ${t.year}`,
+    `월주: ${t.month}`,
+    `일주: ${t.day}`,
+    `시주: ${t.hour}`,
+    `일간: ${saju.ilgan}(${saju.ilganHanja})`,
+    saju.currentTerm ? `출생 절기: ${saju.currentTerm.name || saju.currentTerm}` : null,
+    saju.input.hour === '' || saju.input.hour === null
+      ? '⚠️ 출생 시간 미상 — 시주는 참고로만 쓰고, 시주에 기대는 판단은 피하십시오.' : null,
+    '',
+    '## 2. 앱이 판정한 이론 계층 (통설 기준)',
+    `신강·신약: ${a.strength.label} (일간 세력 ${a.strength.supportRatio}%, 뿌리 ${a.strength.rootCount}곳 — 글자 수가 아니라 통근 기준)`,
+    `격국: ${th.gyeokguk.name} — ${th.gyeokguk.basis}`,
+    `조후: ${th.johu.tempLabel} · ${th.johu.humidLabel}`,
+    '',
+    '### 용신 — 세 관법을 각각 산출한 값',
+    `· 억부용신: ${el(y.eokbu)}`,
+    `· 조후용신: ${el(y.johuNeed)}`,
+    y.gyeokguk ? `· 격국용신(상신): ${el(y.gyeokguk.need)} — 상신 십성 ${el(y.gyeokguk.sipseong)}, ${y.gyeokguk.kind === '길' ? '살려 쓰는 격' : '눌러 쓰는 격'}` : null,
+    `· 세 관법의 공통분모: ${el(y.common)}`,
+    '이 셋이 갈리면 갈린 채로 다루십시오. 하나로 합치지 마십시오.',
+    '',
+    `십이운성: ${th.stages.map((s) => `${s.pos}지 ${s.branch}=${s.unseong}`).join(', ')}`,
+    `신살(보조자료): ${el(th.sinsal.filter((s) => s.present).map((s) => s.name))}`,
+    `원국 내 형충회합: ${th.relations.length ? th.relations.map((r) => `${r.label}(${r.from}·${r.to})`).join(', ') : '두드러진 것 없음'}`,
+  ];
+
+  if (luck && luck.daewoon) {
+    const dw = luck.daewoon.list.map((x) => `${x.age}세 ${x.kor}(${x.hanja})`).join(', ');
+    lines.push('', '## 3. 대운 · 세운',
+      `대운 방향: ${luck.daewoon.direction} / 시작 나이: ${luck.daewoon.startAge}세`,
+      `대운: ${dw}`);
+    if (luck.sewoon && luck.sewoon.length) {
+      const cur = luck.sewoon.find((s) => s.isCurrent) || luck.sewoon[0];
+      lines.push(`올해 세운: ${cur.year}년 ${cur.kor}`);
+      lines.push(`세운 목록: ${luck.sewoon.map((s) => `${s.year} ${s.kor}`).join(', ')}`);
+    }
+  }
+
+  lines.push('', '---', '',
+    '위 값을 전제로, 앞의 분석 순서(①~⑮)에 따라 관법을 섞지 말고 각각 분석한 뒤 마지막에 비교해 주세요.',
+    '각 항목은 쉬운 말 요약으로 시작하고, 전문 용어는 처음 쓸 때 괄호로 풀어 주세요.');
+
+  return `${templateText.trim()}\n${lines.filter((x) => x !== null).join('\n')}\n`;
+}

@@ -33,6 +33,7 @@ const state = {
   cardEls: [],        // fan 과 1:1 대응하는 버튼 요소
   active: 0,          // 아치 꼭대기 카드의 인덱스 (드래그 중에는 소수)
   picked: [],         // [{id, o}] 사용자가 고른 순서대로
+  picking: false,     // 카드가 슬롯으로 날아가는 중 (연타로 다음 장이 딸려 나가는 것을 막는다)
   reading: null,
   pendingShare: null, // 공유 링크로 들어온 경우 로드 후 복원할 값
 };
@@ -134,6 +135,7 @@ function selectTopic(key) {
 function startDraw() {
   const topic = state.topics.find((t) => t.key === state.topicKey);
   state.picked = [];
+  state.picking = false;
   $('#t-draw-topic').textContent = `${topic.label} · 세 장`;
   $('#t-draw-title').textContent = '마음이 가는 카드를 세 장 골라 주세요';
   renderSlots(topic);
@@ -166,6 +168,11 @@ const ARC = {
 };
 /** 드래그 감도 — 1 이면 손끝과 카드가 1:1, 낮출수록 같은 거리로 더 많이 돈다. */
 const DRAG_GAIN = 0.62;
+/** 탭으로 인정하는 손가락 흔들림 한계(px).
+ *  라운드 9까지는 8px 이었는데, 실제 손가락 탭은 10px 안팎으로 흔들린다.
+ *  실측(iPhone 13): 흔들림 8·10·14·20px 에서 카드가 전부 안 뽑혔다.
+ *  이제 거리는 안전망일 뿐이고, 판정 기준은 "카드가 실제로 넘어갔는가"다(endDrag 참조). */
+const TAP_SLOP = 16;
 /** 마지막으로 잰 아치 기하. `measure()`가 채운다. */
 const geo = { w: 380, cw: 90, ch: 151, r: 330, step: 7.2 };
 
@@ -310,14 +317,32 @@ function bindDeck() {
   deckEl.addEventListener('pointerdown', (e) => {
     if (locked()) return;
     // 캡처 뒤에는 e.target 이 덱으로 바뀔 수 있어, 누른 카드를 지금 기억해 둔다.
-    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, from: state.active, moved: 0, el: e.target.closest('.t-card') };
+    drag = {
+      id: e.pointerId,
+      x0: e.clientX, y0: e.clientY,   // 손이 처음 닿은 자리 (흔들림을 재는 원점)
+      x: e.clientX, y: e.clientY,     // 회전 계산의 기준점 (데드존을 벗어나는 순간 갱신된다)
+      from: state.active, moved: 0, armed: false,
+      el: e.target.closest('.t-card'),
+    };
     try { deckEl.setPointerCapture(e.pointerId); } catch { /* 캡처 미지원 */ }
     deckEl.classList.add('dragging');
   });
   deckEl.addEventListener('pointermove', (e) => {
     if (!drag || e.pointerId !== drag.id) return;
+    drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0));
+
+    // 데드존 — 손가락은 누르기만 해도 10px 안팎 흔들린다. 그 구간에서는 아치를 붙잡아 둔다.
+    // 한 장 넘기는 데 필요한 거리가 ≈24px 라 그 절반인 12px 만 흔들려도 카드가 넘어가 버렸고,
+    // 그래서 "가운데 카드를 눌렀는데 안 뽑히는" 일이 생겼다.
+    if (drag.moved < TAP_SLOP) return;
+    if (!drag.armed) {
+      // 데드존을 벗어나는 순간을 새 기준으로 삼는다 — 안 그러면 카드가 그만큼 툭 튄다.
+      drag.armed = true;
+      drag.x = e.clientX; drag.y = e.clientY; drag.from = state.active;
+      return;
+    }
+
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
     // 한 장 넘기는 데 필요한 픽셀. 호 길이 그대로 쓰면 78장을 훑는 데 손이 너무 많이 가서
     // DRAG_GAIN 만큼 짧게 잡는다(= 같은 거리로 더 많이 돈다).
     const perCard = ((geo.r * geo.step * Math.PI) / 180) * DRAG_GAIN;
@@ -327,11 +352,13 @@ function bindDeck() {
   });
   const endDrag = (e) => {
     if (!drag || e.pointerId !== drag.id) return;
-    const { moved, el } = drag;
+    const { el, armed } = drag;
     drag = null;
     deckEl.classList.remove('dragging');
     setActive(Math.round(state.active));
-    if (moved >= 8 || !el) return;         // 밀었으면 탭이 아니다
+    // 데드존을 벗어났으면 '민 것', 아니면 손이 좀 흔들렸어도 '누른 것'이다.
+    // 거리만으로 끊던 구 방식(8px)은 평범한 손가락 탭을 통째로 무시했다.
+    if (!el || armed) return;
     tapCard(Number(el.dataset.i));
   };
   deckEl.addEventListener('pointerup', endDrag);
@@ -389,6 +416,7 @@ function shuffleDeck() {
   const rebuild = () => {
     deckEl.classList.remove('shuffling');
     state.picked = [];
+    state.picking = false;
     $('#t-draw-title').textContent = '마음이 가는 카드를 세 장 골라 주세요';
     renderSlots(state.topics.find((t) => t.key === state.topicKey));
     buildFan();
@@ -401,6 +429,8 @@ function shuffleDeck() {
 
 /** 가운데 카드를 뽑는다. 뽑힌 자리는 나머지 카드가 메운다. */
 function pickActive() {
+  // 잔상이 날아가는 중에 또 누르면 다음 카드가 딸려 나간다 — 사용자가 고르지도 않은 카드다.
+  if (state.picking) return;
   if (state.picked.length >= DRAW_COUNT) return;
   const idx = Math.round(state.active);
   const el = state.cardEls[idx];
@@ -411,8 +441,14 @@ function pickActive() {
   const slotIdx = state.picked.length;
   state.picked.push({ id: card.id, o });
 
+  // ⚠️ 슬롯을 **누른 즉시** 채운다. 잔상이 도착할 때까지 기다리면(실측 ≈0.73초)
+  //    화면에 아무 변화가 없어 "안 눌렸다"고 느끼고 한 번 더 누르게 된다.
+  fillSlot(slotIdx);
   flyToSlot(el, slotIdx);
   removeCard(idx);
+
+  state.picking = true;
+  setTimeout(() => { state.picking = false; }, prefersReduce() ? 0 : 420);
 
   if (state.picked.length === DRAW_COUNT) {
     $('#t-draw-title').textContent = '세 장이 모였어요';
@@ -471,7 +507,9 @@ function randBool() {
 
 function fillSlot(i) {
   const slot = $(`.t-slot[data-i="${i}"]`);
-  if (!slot) return;
+  // 이미 찬 자리를 다시 채우면 등장 애니메이션이 처음부터 다시 뛴다
+  // (지금은 pickActive 와 flyToSlot 이 같은 자리를 두 번 부른다).
+  if (!slot || slot.classList.contains('filled')) return;
   slot.classList.add('filled');
   slot.querySelector('.t-slot-box').innerHTML = '<div class="t-slot-card"></div>';
 }

@@ -6,7 +6,7 @@
 //    · 신살(神殺) — 천을귀인·문창·역마·도화·양인·홍염·괴강·백호
 //    · 조후(調候) — 한난조습
 //    · 격국(格局) — 월지 본기 십성
-//    · 용신(用神) 후보 — 억부 + 조후
+//    · 용신(用神) — 억부 · 조후 · 격국 **세 관법을 각각** (라운드 10)
 //    · 원국 내부 형충회합(刑沖會合)
 //  모든 판정은 '통설(通說)'을 기본값으로 하고, 학파차가 있는 항목은
 //  결과 객체에 note 로 명시한다. 근거는 THEORY.md 참조.
@@ -291,14 +291,111 @@ export function judgeGyeokguk(s) {
   };
 }
 
-// ── 6. 용신(用神) 후보 ────────────────────────────────────────
+// ── 6. 용신(用神) — 관법 세 갈래 ──────────────────────────────
+//
+// ⚠️ 용신은 관법마다 잡는 방식이 다르고, **결론이 갈리는 것이 정상**이다.
+//    · 억부(抑扶) — 일간의 힘을 덜거나 보탠다              (신강·신약 기준)
+//    · 조후(調候) — 원국의 추위·더위를 푼다                (『궁통보감』 계열)
+//    · 격국(格局) — 내 격을 살리는 글자를 상신으로 삼는다   (『자평진전』 계열)
+//    라운드 9까지는 억부와 조후를 한 배열로 합쳐 내보냈는데, 그러면 어느 관법의
+//    결론도 아닌 값이 된다. 이제 셋을 각각 내고, 갈리면 갈린다고 말한다.
+
+/** 일간 오행을 기준으로 십성 무리가 각각 어떤 오행인지 되돌린다. */
+export function elementsBySipseong(el) {
+  return {
+    비겁: el,
+    식상: SAENG[el],
+    재성: GEUK[el],
+    관살: Object.keys(GEUK).find((k) => GEUK[k] === el),
+    인성: Object.keys(SAENG).find((k) => SAENG[k] === el),
+  };
+}
 
 /**
- * 억부(抑扶) + 조후(調候)를 함께 본 용신 후보.
- * 정통 용신 판정은 사주 전체 국(局)을 봐야 하므로 '후보'로만 제시한다.
- * @returns {{primary:string[], reason, johuNeed:string[], avoid:string[], note}}
+ * 격국용신(格局用神) = 상신(相神). 『자평진전』 관법.
+ * 격이 길신(정관·재성·정인·식신)이면 **살려 주는** 글자를,
+ * 흉신(칠살·상관·편인·양인)이면 **눌러 주거나 돌려 쓰는** 글자를 상신으로 삼는다.
  */
-export function judgeYongsin(s, strength, johu) {
+export function judgeGyeokgukYongsin(s, gyeokguk) {
+  const g = elementsBySipseong(s.ilganEl);
+
+  /** 월지 본기 십성 → [상신 십성, 격의 성격, 왜 그 글자인가] */
+  const SANGSIN = {
+    정관: [['재성', '인성'], '길', '정관은 살려서 쓰는 격이에요. 재성이 관을 키워 주고(재생관), 인성이 그 관을 나에게 이로운 쪽으로 돌려 줍니다(관인상생).'],
+    편관: [['식상', '인성'], '흉', '편관(칠살)은 눌러야 쓰이는 격이에요. 식신으로 제압하거나(식신제살), 인성으로 돌려 나를 기르는 힘으로 바꿉니다(살인상생).'],
+    정재: [['식상', '관살'], '길', '재성은 낳아 주는 기운이 있어야 유지돼요. 식상이 재를 낳고(식상생재), 관성이 그 재를 지켜 줍니다.'],
+    편재: [['식상', '관살'], '길', '재성은 낳아 주는 기운이 있어야 유지돼요. 식상이 재를 낳고(식상생재), 관성이 그 재를 지켜 줍니다.'],
+    식신: [['재성'], '길', '식신은 흘러갈 곳이 있어야 해요. 재성이 있으면 표현력과 재능이 성과로 이어집니다(식신생재).'],
+    상관: [['재성', '인성'], '흉', '상관은 그냥 두면 관을 칩니다. 재성으로 흘려보내거나(상관생재), 인성으로 눌러 다스립니다(상관패인).'],
+    정인: [['관살'], '길', '인성을 낳아 주는 기운은 관성이에요. 관이 인을 키우고 인이 나를 키웁니다(관인상생).'],
+    편인: [['재성', '관살'], '흉', '편인이 지나치면 식신을 칩니다(효신). 재성으로 눌러 주거나(재극인) 관살로 방향을 잡아 줍니다.'],
+    비견: [['관살', '식상'], '흉', '비겁이 강한 격이에요. 관살로 다스리거나 식상으로 흘려보내야 그 힘이 쓸모가 됩니다.'],
+    겁재: [['관살', '식상'], '흉', '겁재(양인)가 센 격이에요. 관살로 눌러 쓰거나(양인가살) 식상으로 흘려보냅니다.'],
+  };
+
+  const [names, kind, reason] = SANGSIN[gyeokguk.sipseong] || [[], '길', ''];
+  return {
+    sipseong: names,
+    need: [...new Set(names.map((n) => g[n]).filter(Boolean))],
+    kind,   // '길' = 살려 쓰는 격 · '흉' = 눌러 쓰는 격
+    reason,
+    note: '『자평진전』식 상신(相神) 판정이에요. 격이 제대로 섰는지(성격·파격)와 투간 여부까지 보면 달라질 수 있어요.',
+  };
+}
+
+/**
+ * 세 관법의 결론이 얼마나 겹치는지 말로 풀어 준다.
+ * 겹치지 않는다고 사주가 이상한 게 아니다 — 보는 기준이 다를 뿐이다.
+ */
+/** 받침에 맞는 조사 하나를 고른다 ('격국'→은 / '억부'→는). */
+function josaOf(word, withBatchim, without) {
+  const w = String(word);
+  const c = w.charCodeAt(w.length - 1);
+  return (c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0) ? withBatchim : without;
+}
+const withJosa = (word, a, b) => word + josaOf(word, a, b);
+
+function compareGwanbeop(active, common, johuUrgent) {
+  const names = active.map(([k]) => k);
+  const label = (v) => v.map((e) => `${e}(${ELEMENTS_HANJA[e]})`).join('·');
+
+  if (active.length < 2) return '지금은 한 가지 기준만 뚜렷해서 비교할 것이 많지 않아요.';
+
+  if (common.length) {
+    return `${names.join('·')} 기준이 모두 ${label(common)} 쪽을 가리켜요. 여러 관법이 같은 답을 낼 때는 그 기운이 실제로 도움이 될 가능성이 높습니다.`;
+  }
+
+  // 셋이 다 겹치지는 않아도 둘끼리 만나는 곳은 있을 수 있다 — 그 지점이 가장 무난한 답이다.
+  const met = [];
+  for (let i = 0; i < active.length; i++) {
+    for (let j = i + 1; j < active.length; j++) {
+      const shared = active[i][1].filter((x) => active[j][1].includes(x));
+      if (shared.length) {
+        met.push(`${withJosa(active[i][0], '과', '와')} ${withJosa(active[j][0], '은', '는')} ${label(shared)}에서`);
+      }
+    }
+  }
+
+  const lines = active.map(([k, v]) => `${withJosa(k, '은', '는')} ${label(v)}`).join(', ');
+  const order = johuUrgent
+    ? '지금은 원국의 추위·더위가 뚜렷한 편이라, 실무에서는 조후를 먼저 풀고 그다음 격국·억부를 보는 순서를 많이 씁니다.'
+    : '기후가 급하지 않을 때는 격국(내 그릇을 어떻게 쓰느냐)을 먼저 보고, 일간의 힘이 크게 치우쳤다면 억부를 앞세우는 순서를 많이 씁니다.';
+  const bridge = met.length ? ` 다만 ${met.join(', ')} 만나요.` : '';
+
+  // 조사는 한자 괄호가 아니라 그 앞의 오행 이름(목·금은 받침 있음)으로 정해야 한다.
+  const tailList = active[active.length - 1][1];
+  const tail = josaOf(tailList[tailList.length - 1], '을', '를');
+
+  return `${lines}${tail} 가리켜 서로 갈립니다.${bridge} 사주가 이상해서가 아니라 보는 기준 자체가 다르기 때문이에요. 억지로 하나로 합치면 어느 관법의 결론도 아니게 되므로, 명리에서는 갈린 채로 두고 상황에 맞게 쓰는 것이 정설입니다. ${order}`;
+}
+
+/**
+ * 억부(抑扶)·조후(調候)·격국(格局) 세 관법의 용신을 각각 낸다.
+ * 정통 용신 판정은 사주 전체 국(局)을 봐야 하므로 '후보'로만 제시한다.
+ * @returns {{primary:string[], eokbu:string[], johuNeed:string[], gyeokguk:object|null,
+ *            common:string[], compare:string, avoid:string[], reason, johuFirst, note}}
+ */
+export function judgeYongsin(s, strength, johu, gyeokguk) {
   const el = s.ilganEl;
   const strong = strength.label.startsWith('신강') || strength.label === '중화신강(中和身强)';
 
@@ -317,10 +414,22 @@ export function judgeYongsin(s, strength, johu) {
 
   // 조후가 급하면 조후용신을 앞세우는 것이 통설
   const primary = [...new Set([...johu.need, ...eokbu])];
+
+  const gyeok = gyeokguk ? judgeGyeokgukYongsin(s, gyeokguk) : null;
+
+  // 세 관법이 같은 오행을 가리키는지 — 겹치는 것이 있으면 그것이 가장 안전한 답이다.
+  const active = [['억부', eokbu], ['조후', johu.need], ['격국', gyeok ? gyeok.need : []]]
+    .filter(([, v]) => v.length);
+  const common = active.length >= 2
+    ? active.map(([, v]) => v).reduce((acc, v) => acc.filter((x) => v.includes(x)))
+    : [];
+
   return {
-    primary, eokbu, johuNeed: johu.need, avoid, reason,
+    primary, eokbu, johuNeed: johu.need, gyeokguk: gyeok,
+    common, compare: compareGwanbeop(active, common, johu.need.length > 0),
+    avoid, reason,
     johuFirst: johu.need.length > 0,
-    note: '억부(신강·신약)와 조후(한난조습)를 함께 본 후보입니다. 정밀 용신은 원국 전체의 짜임을 봐야 하므로 참고로 봐 주세요.',
+    note: '억부·조후·격국은 서로 다른 관법이라 답이 갈릴 수 있어요. 정밀 용신은 원국 전체의 짜임을 봐야 하므로 후보로 봐 주세요.',
   };
 }
 
@@ -393,14 +502,16 @@ export function analyzeTheory(saju) {
   const s = spread(saju);
   const strength = judgeStrength(s);
   const johu = judgeJohu(s);
-  const yongsin = judgeYongsin(s, strength, johu);
+  // 격국을 먼저 잡아야 격국용신(상신)을 낼 수 있다 — 용신이 격국에 의존한다.
+  const gyeokguk = judgeGyeokguk(s);
+  const yongsin = judgeYongsin(s, strength, johu, gyeokguk);
   return {
     spread: s,
     strength,
     stages: twelveStages(s),
     sinsal: findSinsal(s),
     johu,
-    gyeokguk: judgeGyeokguk(s),
+    gyeokguk,
     yongsin,
     relations: findInternalRelations(s),
   };
