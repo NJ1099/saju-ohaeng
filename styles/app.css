@@ -1076,3 +1076,13 @@ body[data-route="tarot"] .foot-dot { color: #4A4654; }
   .gm-tally { grid-template-columns: repeat(3, 1fr); }
   .gm-types { grid-template-columns: 1fr; }
 }
+
+/* 귀인 지도 궤도 그림 — 나를 가운데 두고 관계별 색 선으로 잇는다(map.js::orbitHtml) */
+.gm-orbit { text-align: center; padding: 12px 12px 14px; margin-bottom: 14px; }
+.gm-orbit svg { width: 100%; max-width: 340px; height: auto; display: block; margin: 0 auto; }
+.gm-orb-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 12px; margin-top: 6px; font-size: 12px; color: #4E5968; }
+.gm-orb-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+/* 결과 링크를 연 사람이 방장일 때 — 이 브라우저에 지도를 만들고 바로 올린다 */
+.gm-owner { background: #E8F3FF; border-radius: 16px; padding: 16px; margin: 14px 0; }
+.gm-owner p { margin: 6px 0 12px; font-size: 14px; color: #4E5968; line-height: 1.55; }
+.gm-orb-empty { color: #8B95A1; font-size: 13px; margin: 4px 0 0; }

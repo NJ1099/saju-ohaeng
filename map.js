@@ -124,6 +124,16 @@ function enterMap() {
   const q = hashQuery();
   const h = q.get('h');
   const g = q.get('g');
+  const all = q.get('all');
+
+  // ⓪ 내 지도 링크(h+all) — 다른 브라우저·토스 앱·카톡 브라우저에서 열어도 같은 지도로 합친다.
+  //    지도는 기기마다 따로 저장되므로(서버 없음), 이 링크가 기기 사이를 잇는 유일한 다리다.
+  if (h && all != null) {
+    if (!state.store || state.store.host !== h) state.store = { host: h, entries: [], createdAt: Date.now() };
+    for (const enc of all.split(',').filter(Boolean).reverse()) addEntry(h, enc, { silent: true });
+    if (!saveStore(state.store)) toast('이 브라우저에 저장할 수 없어요. 시크릿 모드에서는 지도가 유지되지 않아요.');
+    state.hostEnc = h; state.view = 'map'; render(); return;
+  }
 
   // ① 결과 링크(h+g) — 내가 방장이면 지도에 담는다
   if (h && g) {
@@ -167,7 +177,7 @@ function judge(hEnc, gEnc) {
 }
 
 /** 지도에 한 사람 추가 (같은 사람은 갱신). */
-function addEntry(hEnc, gEnc) {
+function addEntry(hEnc, gEnc, { silent = false } = {}) {
   const j = judge(hEnc, gEnc);
   if (!j) return;
   const entries = state.store.entries.filter((e) => e.enc !== gEnc);
@@ -178,6 +188,7 @@ function addEntry(hEnc, gEnc) {
     at: Date.now(),
   });
   state.store.entries = entries.slice(0, MAX_ENTRIES);
+  if (silent) return;
   // 저장 실패를 삼키지 않는다. `state.store` 는 메모리에서 이미 갱신됐으므로
   // **화면에는 친구가 보이는데 새로고침하면 사라진다** — 지도의 존재 이유가
   // 누적인데 그 누적만 조용히 실패한다(시크릿 모드·저장공간 부족).
@@ -364,6 +375,12 @@ function joinedHtml() {
       <p class="gm-privacy">이 링크에는 <b>내 생년월일</b>이 담겨 있어요. 보낼 상대를 확인해 주세요.</p>
     </div>
 
+    <div class="gm-owner">
+      <b>${esc(hostName)}님 본인이신가요?</b>
+      <p>지도를 만든 브라우저와 지금 연 곳(카톡 안 브라우저·토스 앱 등)이 다르면 지도가 안 보여요. 아래를 누르면 <b>여기에 ${esc(hostName)}님 지도를 만들고</b> ${esc(guestPerson.name || '이 사람')}님을 바로 올려요.</p>
+      <button type="button" class="gm-btn primary wide" id="gm-claim">내 지도에 추가하기</button>
+    </div>
+
     <div class="gm-actions">
       <button type="button" class="gm-btn wide" id="gm-make-mine">나도 내 귀인 지도 만들기</button>
     </div>`;
@@ -408,6 +425,8 @@ function mapHtml() {
       <p class="gm-host-hint">${esc(hostHint(host))}</p>
     </div>
 
+    ${orbitHtml(name, persona.emoji, entries)}
+
     <div class="gm-tally">
       ${Object.values(GWIIN_TYPES).map((t) => `
         <div class="gm-tally-item${counts[t.key] ? ' on' : ''}">
@@ -433,13 +452,83 @@ function mapHtml() {
     </div>
 
     <p class="gm-note">
-      이 지도는 <b>이 브라우저에만</b> 저장돼요. 다른 기기에서는 보이지 않고,
-      브라우저 데이터를 지우면 함께 사라집니다.
+      이 지도는 <b>이 브라우저에만</b> 저장돼요. 친구 결과 링크는 <b>지도를 만든 곳에서</b> 열어야 쌓여요.
+      다른 기기·앱으로 옮기려면 아래 <b>내 지도 링크</b>를 그곳에서 열어 주세요.
     </p>
+    <div class="gm-actions">
+      <button type="button" class="gm-btn" id="gm-copy-map">내 지도 링크 복사</button>
+    </div>
     <div class="gm-actions">
       <button type="button" class="gm-btn" id="gm-reset">전체 지우기</button>
       <button type="button" class="gm-btn" data-goto="saju">내 사주 보기</button>
     </div>`;
+}
+
+/** 내 지도를 다른 브라우저·앱으로 옮기는 링크 — 방장 + 올라온 사람 전부. */
+function myMapUrl() {
+  const entries = state.store ? state.store.entries : [];
+  return mapUrl({ h: state.hostEnc, all: entries.map((e) => e.enc).join(',') });
+}
+
+/** 결과 링크를 연 사람이 「내가 방장」이라고 고르면, 이 브라우저에 지도를 만들고 그 사람을 올린다. */
+function onClaim() {
+  const j = state.joinResult;
+  if (!j) return;
+  if (state.store && state.store.host !== state.hostEnc
+      && !confirm('이 브라우저에 있던 다른 지도는 지워지고 새 지도로 바뀌어요. 계속할까요?')) return;
+  if (!state.store || state.store.host !== state.hostEnc) state.store = { host: state.hostEnc, entries: [], createdAt: Date.now() };
+  addEntry(state.hostEnc, encodePerson(j.guestPerson));
+  state.view = 'map';
+  render();
+}
+
+// ── 궤도 그림: 나를 가운데 두고 관계별 색 선으로 잇는다. 천천히 돈다(동작 줄이기 설정이면 멈춤).
+const TYPE_COLOR = { gwiin: '#F2B705', soulmate: '#3182F6', mine: '#2FB67A', righthand: '#8B5CF6', tiger: '#F04452' };
+function orbitHtml(name, emoji, entries) {
+  const list = entries.slice(0, 24);
+  const R = 118, C = 160;
+  const nodes = list.map((e, i) => {
+    const t = GWIIN_TYPES[e.type] || GWIIN_TYPES.gwiin;
+    const ring = list.length > 12 ? (i % 2 ? R : R - 34) : R;
+    const a = (i / Math.max(list.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    const x = C + Math.cos(a) * ring, y = C + Math.sin(a) * ring;
+    const col = TYPE_COLOR[t.key] || '#8B95A1';
+    return `<line x1="${C}" y1="${C}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="${col}" stroke-width="2.5" stroke-linecap="round" opacity=".75"/>
+      <g class="gm-orb-node" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">
+        <g class="gm-orb-upright"><circle r="17" fill="#fff" stroke="${col}" stroke-width="3"/>
+        <text y="6" text-anchor="middle" font-size="16">${t.emoji}</text>
+        <text y="33" text-anchor="middle" font-size="11" fill="#4E5968">${esc((e.name || '').slice(0, 5))}</text></g>
+      </g>`;
+  }).join('');
+  const legend = Object.values(GWIIN_TYPES).map((t) => `<span><i style="background:${TYPE_COLOR[t.key]}"></i>${esc(t.label)}</span>`).join('');
+  return `
+    <div class="gm-orbit card" aria-label="귀인 지도 그림 — 나를 가운데 두고 관계별 색 선으로 이은 그림">
+      <svg viewBox="0 0 320 320" role="img">
+        <circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="#E5E8EB" stroke-dasharray="3 6"/>
+        <g class="gm-orb-spin">${nodes}</g>
+        <circle cx="${C}" cy="${C}" r="30" fill="#191F28"/>
+        <text x="${C}" y="${C + 7}" text-anchor="middle" font-size="22">${emoji}</text>
+        <text x="${C}" y="${C + 50}" text-anchor="middle" font-size="12" font-weight="700" fill="#191F28">${esc(name)}</text>
+      </svg>
+      ${list.length ? '' : '<p class="gm-orb-empty">친구가 올라오면 여기 궤도에 떠요.</p>'}
+      <div class="gm-orb-legend">${legend}</div>
+    </div>`;
+}
+let orbitRaf = 0;
+function startOrbit() {
+  cancelAnimationFrame(orbitRaf);
+  const spin = $('#map-root .gm-orb-spin');
+  if (!spin || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const uprights = $$('#map-root .gm-orb-upright');
+  const t0 = performance.now();
+  const step = (now) => {
+    if (!spin.isConnected) return;
+    const deg = ((now - t0) / 1000) * 6;   // 1분에 한 바퀴 — 천천히
+    spin.setAttribute('transform', `rotate(${deg.toFixed(2)} 160 160)`);
+    for (const u of uprights) u.setAttribute('transform', `rotate(${(-deg).toFixed(2)})`);   // 글자는 똑바로
+    orbitRaf = requestAnimationFrame(step);
+  };
+  orbitRaf = requestAnimationFrame(step);
 }
 
 // ── 이벤트 ────────────────────────────────────────────────
@@ -463,6 +552,9 @@ function bind() {
     state.view = 'intro'; state.hostEnc = null; render();
   });
   $('#gm-reset')?.addEventListener('click', onReset);
+  $('#gm-claim')?.addEventListener('click', onClaim);
+  $('#gm-copy-map')?.addEventListener('click', () => copyAndToast(myMapUrl()));
+  startOrbit();
   for (const b of $$('#map-root [data-del]')) {
     b.addEventListener('click', () => onDelete(b.dataset.del));
   }
