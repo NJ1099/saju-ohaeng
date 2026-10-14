@@ -84,7 +84,7 @@ function init() {
   $('#t-reversed').addEventListener('change', (e) => { state.allowReversed = e.target.checked; });
   $('#t-shuffle').addEventListener('click', () => shuffleDeck());
   $('#t-auto').addEventListener('click', () => autoPick());
-  $('#t-pick').addEventListener('click', () => pickActive());
+  bindPressButton($('#t-pick'), pickActive);
   bindDeck();
 
   // 화면 회전·창 크기 변경 시 아치를 다시 잰다.
@@ -384,6 +384,32 @@ function bindDeck() {
 function focusActive() {
   const el = state.cardEls[Math.round(state.active)];
   if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+}
+
+/** 누르는 즉시 반응하는 버튼 — 손을 떼는 순간(pointerup) 실행하고, 뒤따라오는 click 은 한 번 무시한다.
+ * 토스 앱(WebView) 안에서 「이 카드 뽑기」가 두 번 눌러야 먹었다(2026-10-14 사용자 제보 · 웹 브라우저는 정상).
+ * WebView 가 첫 탭을 click 으로 넘기지 않는 경우가 있어서, click 하나에만 기대지 않는다.
+ * 키보드(Enter·Space)로 누른 click 은 pointerup 이 없으니 그대로 받는다. */
+function bindPressButton(btn, run) {
+  if (!btn) return;
+  let down = null, ignoreClickUntil = 0;
+  btn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    down = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  });
+  btn.addEventListener('pointercancel', () => { down = null; });
+  btn.addEventListener('pointerup', (e) => {
+    if (!down || e.pointerId !== down.id) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    down = null;
+    if (btn.disabled || moved > TAP_SLOP) return;
+    ignoreClickUntil = Date.now() + 600;
+    run();
+  });
+  btn.addEventListener('click', () => {
+    if (Date.now() < ignoreClickUntil) return;
+    run();
+  });
 }
 
 /** 카드 탭 — 가운데 카드면 뽑고, 아니면 가운데로 굴려 온다. */

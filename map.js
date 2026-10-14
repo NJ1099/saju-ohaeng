@@ -178,7 +178,13 @@ function addEntry(hEnc, gEnc) {
     at: Date.now(),
   });
   state.store.entries = entries.slice(0, MAX_ENTRIES);
-  saveStore(state.store);
+  // 저장 실패를 삼키지 않는다. `state.store` 는 메모리에서 이미 갱신됐으므로
+  // **화면에는 친구가 보이는데 새로고침하면 사라진다** — 지도의 존재 이유가
+  // 누적인데 그 누적만 조용히 실패한다(시크릿 모드·저장공간 부족).
+  // 지도 생성 경로(`onCreate`)는 이미 같은 경고를 띄운다. 여기만 빠져 있었다.
+  if (!saveStore(state.store)) {
+    toast('이 브라우저에 저장할 수 없어요. 시크릿 모드에서는 지도가 유지되지 않아요.');
+  }
 }
 
 // ── 렌더 ──────────────────────────────────────────────────
@@ -544,7 +550,12 @@ function onJoin(e) {
 function onDelete(enc) {
   if (!state.store) return;
   state.store.entries = state.store.entries.filter((x) => x.enc !== enc);
-  saveStore(state.store);
+  // 저장에 실패하면 "지웠다"고 말하면 안 된다 — 새로고침하면 되살아난다.
+  if (!saveStore(state.store)) {
+    render();
+    toast('이 브라우저에 저장할 수 없어 지우지 못했어요.');
+    return;
+  }
   render();
   toast('지도에서 지웠어요.');
 }
