@@ -1,7 +1,7 @@
 // ============================================================
 //  오행 · app.js — 입력 → 만세력 계산 → 분석 → 풀이 렌더링.
 // ============================================================
-import { computeSaju, pillarsText } from './engine/saju.js';
+import { computeSaju, pillarsText, daysInGregorianMonth } from './engine/saju.js';
 import { analyze } from './engine/analyze.js';
 import { buildReading, buildSimpleSummary, buildElementWeakness, buildCompatibility } from './engine/reading.js';
 import { analyzeCompatibility } from './engine/compat.js';
@@ -31,6 +31,10 @@ const REGIONS = [
   ['광주·전남', 126.852], ['대구·경북', 128.601], ['포항', 129.365], ['부산', 129.075],
   ['울산', 129.311], ['창원·경남', 128.681], ['제주', 126.531], ['해외/기타(135°E)', 135.0],
 ];
+
+// 엔진이 1900–2050 음력을 검증한 범위. 상한은 올해에 고정하지 않는다.
+const BIRTH_YEAR_MIN = 1900;
+const birthYearMax = () => new Date().getFullYear() + 1;
 
 const state = {
   mode: 'solo', // 'solo' | 'couple'
@@ -100,7 +104,7 @@ function initShell() {
 
 /** 한 사람 분량의 입력 컨트롤을 채우고 이벤트를 연결한다. */
 function initPersonForm(k) {
-  fillSelect(P('in-year', k), range(1930, 2027).reverse(), (y) => [`${y}`, `${y}년`], 1995);
+  fillSelect(P('in-year', k), range(BIRTH_YEAR_MIN, birthYearMax()).reverse(), (y) => [`${y}`, `${y}년`], 1995);
   fillSelect(P('in-month', k), range(1, 12), (m) => [`${m}`, `${m}월`], 1);
   refreshDays(k);
   fillSelect(P('in-hour', k), range(0, 23), (h) => [`${h}`, `${String(h).padStart(2, '0')}시`], 12);
@@ -246,7 +250,7 @@ function fillSelect(sel, items, fmt, def) {
     el.appendChild(o);
   }
 }
-function daysInMonth(y, m) { return [31, (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]; }
+function daysInMonth(y, m) { return daysInGregorianMonth(y, m) || 30; }
 function refreshDays(k = 1) {
   const y = +$(P('in-year', k)).value || 1995, m = +$(P('in-month', k)).value || 1;
   const cur = +$(P('in-day', k))?.value || 1;

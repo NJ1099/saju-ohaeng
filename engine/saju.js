@@ -28,16 +28,33 @@ const KST_PERIODS = [
   { start: [1954, 3, 21], end: [1961, 8, 9], offsetMin: 510, meridian: 127.5 },
   { start: [1961, 8, 10], end: [9999, 12, 31], offsetMin: 540, meridian: 135 },
 ];
-// 서머타임(일광절약) 구간 — 이 구간 출생자는 시계가 +1h 앞당겨져 있었음.
+// 서머타임(일광절약). IANA tzdb Asia/Seoul Rule ROK.
+// end 는 그 시각부터 표준시(미포함). 1948–1960 종료는 전날 24:00 = 끝 날짜 00:00.
+// 1987–1988 은 2:00 시작, 10월 일요일 3:00 종료.
 const DST_WINDOWS = [
-  ['1948-06-01', '1948-09-13'], ['1949-04-03', '1949-09-11'], ['1950-04-01', '1950-09-10'],
-  ['1951-05-06', '1951-09-09'], ['1955-05-05', '1955-09-09'], ['1956-05-20', '1956-09-30'],
-  ['1957-05-05', '1957-09-22'], ['1958-05-04', '1958-09-21'], ['1959-05-03', '1959-09-20'],
-  ['1960-05-01', '1960-09-18'], ['1987-05-10', '1987-10-11'], ['1988-05-08', '1988-10-09'],
+  { start: [1948, 6, 1, 0, 0], end: [1948, 9, 13, 0, 0] },
+  { start: [1949, 4, 3, 0, 0], end: [1949, 9, 11, 0, 0] },
+  { start: [1950, 4, 1, 0, 0], end: [1950, 9, 10, 0, 0] },
+  { start: [1951, 5, 6, 0, 0], end: [1951, 9, 9, 0, 0] },
+  { start: [1955, 5, 5, 0, 0], end: [1955, 9, 9, 0, 0] },
+  { start: [1956, 5, 20, 0, 0], end: [1956, 9, 30, 0, 0] },
+  { start: [1957, 5, 5, 0, 0], end: [1957, 9, 22, 0, 0] },
+  { start: [1958, 5, 4, 0, 0], end: [1958, 9, 21, 0, 0] },
+  { start: [1959, 5, 3, 0, 0], end: [1959, 9, 20, 0, 0] },
+  { start: [1960, 5, 1, 0, 0], end: [1960, 9, 18, 0, 0] },
+  { start: [1987, 5, 10, 2, 0], end: [1987, 10, 11, 3, 0] },
+  { start: [1988, 5, 8, 2, 0], end: [1988, 10, 9, 3, 0] },
 ];
 const SEOUL_LON = 126.9784;
 
 function ymdNum(y, m, d) { return y * 10000 + m * 100 + d; }
+function civilMin(y, m, d, h, mi) { return ymdNum(y, m, d) * 1440 + h * 60 + mi; }
+
+/** 그레고리력 그 달의 일수. 없는 달이면 0. */
+export function daysInGregorianMonth(y, m) {
+  if (!Number.isInteger(y) || !Number.isInteger(m) || m < 1 || m > 12) return 0;
+  return [31, (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+}
 
 /** 해당 양력 날짜의 법정 표준시 offset(분)·표준자오선. */
 function legalOffset(y, m, d) {
@@ -50,14 +67,10 @@ function legalOffset(y, m, d) {
   return { offsetMin: Math.round(SEOUL_LON * 4), meridian: SEOUL_LON };
 }
 
-/** 해당 양력 날짜가 서머타임 구간이면 true. */
-function inDST(y, m, d) {
-  const n = ymdNum(y, m, d);
-  return DST_WINDOWS.some(([a, b]) => {
-    const [ay, am, ad] = a.split('-').map(Number);
-    const [by, bm, bd] = b.split('-').map(Number);
-    return n >= ymdNum(ay, am, ad) && n <= ymdNum(by, bm, bd);
-  });
+/** 출생 시계(법정 시각)가 서머타임 구간이면 true. end 시각은 포함하지 않는다. */
+function inDST(y, m, d, h = 0, mi = 0) {
+  const n = civilMin(y, m, d, h, mi);
+  return DST_WINDOWS.some((w) => n >= civilMin(...w.start) && n < civilMin(...w.end));
 }
 
 /** 균시차(Equation of Time), 분. apparent = mean + EoT. Meeus 기반. */
@@ -106,9 +119,15 @@ export function computeSaju(input) {
     useDST: true, dayBoundary: '자시', ...(input.options || {}),
   };
 
-  // 1) 음력이면 양력으로 변환
+  // 1) 음력이면 양력으로 변환. 양력은 없는 날짜(2월 31일 등)를 다음 달로 넘기지 않는다.
   let sy = input.year, sm = input.month, sd = input.day;
   let lunarInfo = null;
+  if (input.calendar !== 'lunar') {
+    const dim = daysInGregorianMonth(sy, sm);
+    if (!dim || !Number.isInteger(sd) || sd < 1 || sd > dim) {
+      return { error: `양력 ${sy}년 ${sm}월 ${sd}일은 없는 날짜입니다.` };
+    }
+  }
   if (input.calendar === 'lunar') {
     const conv = lunarToSolar(input.year, input.month, !!input.isLeapMonth, input.day);
     if (!conv) {
@@ -126,10 +145,14 @@ export function computeSaju(input) {
   const hasTime = input.hour !== null && input.hour !== undefined && input.hour !== '';
   const clockH = hasTime ? Number(input.hour) : 12;
   const clockM = hasTime ? Number(input.minute || 0) : 0;
+  if (hasTime && (!Number.isInteger(clockH) || !Number.isInteger(clockM) || clockH < 0 || clockH > 23 || clockM < 0 || clockM > 59)) {
+    return { error: '태어난 시각은 0–23시, 0–59분으로 적어 주세요.' };
+  }
 
   // 2) 출생 순간의 UT 율리우스일 (법정 표준시 offset, 서머타임 포함)
+  //    시간을 모르면 정오를 대표 시각으로 쓴다(절기·서머타임 경계도 정오 기준).
   const { offsetMin, meridian } = legalOffset(sy, sm, sd);
-  const dstOn = opt.useDST && inDST(sy, sm, sd);
+  const dstOn = opt.useDST && inDST(sy, sm, sd, clockH, clockM);
   const effOffsetMin = offsetMin + (dstOn ? 60 : 0); // 서머타임이면 시계가 +1h
   const jdLocalAsUT = toJD(sy, sm, sd, clockH, clockM, 0);
   const jdUT = jdLocalAsUT - effOffsetMin / 1440;

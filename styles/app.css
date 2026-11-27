@@ -43,6 +43,9 @@
 }
 
 * { box-sizing: border-box; }
+/* display를 직접 준 요소(.check, .gm-check, .person-head, .share-opt)가
+   UA의 [hidden]{display:none}을 덮어 숨긴 컨트롤이 보이던 문제를 막는다. */
+[hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
 body {
   font-family: var(--font);

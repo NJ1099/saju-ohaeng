@@ -48,6 +48,13 @@ export function fromJD(jd) {
   let sec = Math.round((rem - min) * 60);
   if (sec >= 60) { sec -= 60; min += 1; }
   if (min >= 60) { min -= 60; hour += 1; }
+  // 59.5초 반올림이 24:00이 되면 날짜를 넘기지 않은 채 시각만 24시로 남는다.
+  if (hour >= 24) {
+    const days = Math.floor(hour / 24);
+    hour -= days * 24;
+    const carried = fromJD(Math.floor(jd + 0.5) + days);
+    return { year: carried.year, month: carried.month, day: carried.day, hour, min, sec };
+  }
   return { year, month, day, hour, min, sec };
 }
 
