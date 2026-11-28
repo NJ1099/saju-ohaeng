@@ -14,7 +14,8 @@
 //    이 한계는 화면에도 그대로 적어 둔다 — 사라질 수 있다는 걸 미리 알려야 한다.
 //  · 링크에 생년월일이 담기므로, 보내는 사람이 그 사실을 알고 누르게 한다.
 // ============================================================
-import { computeSaju } from './engine/saju.js';
+import { computeSaju, daysInGregorianMonth } from './engine/saju.js';
+import { leapMonthOf, daysInLunarMonth } from './engine/lunar.js';
 import { analyze } from './engine/analyze.js';
 import { analyzeGwiin, GWIIN_TYPES, tallyMap, hostHint } from './engine/gwiin.js';
 import { buildPersona } from './engine/persona.js';
@@ -210,10 +211,14 @@ function render() {
   window.scrollTo(0, 0);
 }
 
+/** 사주 화면과 같은 범위. 상한을 특정 해로 고정하면 그 다음 해 출생을 넣을 수 없다. */
+const BIRTH_YEAR_MIN = 1900;
+const birthYearMax = () => new Date().getFullYear() + 1;
+
 /** 생년월일 입력 폼 — 사주 화면 것과 별개로, 귀인 지도에 필요한 만큼만 둔다. */
 function formHtml(prefix, { needName = true } = {}) {
   const years = [];
-  for (let y = 2026; y >= 1930; y--) years.push(y);
+  for (let y = birthYearMax(); y >= BIRTH_YEAR_MIN; y--) years.push(y);
   const opts = (arr, fmt, sel) => arr.map((v) => `<option value="${v}"${v === sel ? ' selected' : ''}>${fmt(v)}</option>`).join('');
   const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
@@ -570,12 +575,15 @@ function bindSegmented(wrap) {
   }
 }
 
-/** 음력을 고르고 그 해에 윤달이 있을 때만 체크박스를 보여 준다. */
+/** 음력이고, 고른 달이 그 해의 윤달일 때만 체크박스를 보여 준다. */
 function bindLeapToggle(prefix) {
-  const y = $(`#${prefix}-year`), m = $(`#${prefix}-month`);
+  const y = $(`#${prefix}-year`), m = $(`#${prefix}-month`), leap = $(`#${prefix}-leap`);
   if (!y || !m) return;
-  y.addEventListener('change', () => refreshLeap(prefix));
-  m.addEventListener('change', () => refreshLeap(prefix));
+  const sync = () => refreshLeap(prefix);
+  y.addEventListener('change', sync);
+  m.addEventListener('change', sync);
+  leap?.addEventListener('change', () => refreshDays(prefix));
+  sync();
 }
 
 /** 시간 미상이면 분은 쓰이지 않는다(readForm 이 null 로 버린다) — 고를 수 있게 두면 오해를 준다. */
@@ -590,9 +598,42 @@ function bindMinuteToggle(prefix) {
 function refreshLeap(prefix) {
   const wrap = $(`#${prefix}-leap-wrap`);
   const calSeg = $(`#${prefix}-cal .seg.active`);
-  if (!wrap || !calSeg) return;
-  wrap.hidden = calSeg.dataset.val !== 'lunar';
-  if (wrap.hidden) { const c = $(`#${prefix}-leap`); if (c) c.checked = false; }
+  const box = $(`#${prefix}-leap`);
+  if (!wrap || !calSeg || !box) return;
+  const lunar = calSeg.dataset.val === 'lunar';
+  const y = Number($(`#${prefix}-year`)?.value);
+  const m = Number($(`#${prefix}-month`)?.value);
+  let leap = 0;
+  if (lunar) { try { leap = leapMonthOf(y); } catch { leap = 0; } }
+  const show = lunar && leap === m;
+  wrap.hidden = !show;
+  if (!show) box.checked = false;
+  refreshDays(prefix);
+}
+
+/** 양력은 그 달의 말일, 음력은 29·30일까지만 고를 수 있게 한다. */
+function refreshDays(prefix) {
+  const dayEl = $(`#${prefix}-day`);
+  if (!dayEl) return;
+  const y = Number($(`#${prefix}-year`)?.value);
+  const m = Number($(`#${prefix}-month`)?.value);
+  const lunar = $(`#${prefix}-cal .seg.active`)?.dataset.val === 'lunar';
+  const leap = !!$(`#${prefix}-leap`)?.checked;
+  let max = daysInGregorianMonth(y, m) || 30;
+  if (lunar) {
+    try { max = daysInLunarMonth(y, m, leap); } catch { max = 30; }
+    if (max !== 29 && max !== 30) max = 30;
+  }
+  const cur = Number(dayEl.value) || 1;
+  const next = Math.min(cur, max);
+  dayEl.replaceChildren();
+  for (let d = 1; d <= max; d++) {
+    const o = document.createElement('option');
+    o.value = String(d);
+    o.textContent = `${d}일`;
+    if (d === next) o.selected = true;
+    dayEl.appendChild(o);
+  }
 }
 
 function readForm(prefix) {

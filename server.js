@@ -4,8 +4,8 @@
 // ============================================================
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, normalize, extname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, normalize, extname, resolve, relative, isAbsolute, sep } from 'node:path';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4476;
@@ -25,14 +25,31 @@ const MIME = {
   '.webp': 'image/webp',
 };
 
+/**
+ * 요청 경로를 ROOT 안의 파일로만 해석한다.
+ * `..` 탈출, 절대경로로 베이스를 갈아끼우는 경우, `.git` 같은 점(.) 파일은 null.
+ * @returns {string | null}
+ */
+export function resolveStaticPath(root, rawUrl) {
+  let urlPath;
+  try { urlPath = decodeURIComponent(String(rawUrl ?? '/').split('?')[0]); }
+  catch { return null; }
+  if (urlPath.includes('\0')) return null;
+  if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
+  const rel = normalize(urlPath).replace(/^[/\\]+/, '');
+  if (!rel || rel.split(/[/\\]/).some((seg) => seg.startsWith('.'))) return null;
+  const rootResolved = resolve(root);
+  const filePath = resolve(rootResolved, rel);
+  const relToRoot = relative(rootResolved, filePath);
+  if (!relToRoot || relToRoot.startsWith('..') || isAbsolute(relToRoot)) return null;
+  if (relToRoot.split(sep).some((seg) => seg.startsWith('.'))) return null;
+  return filePath;
+}
+
 const server = createServer(async (req, res) => {
   try {
-    let urlPath = decodeURIComponent(req.url.split('?')[0]);
-    if (urlPath === '/') urlPath = '/index.html';
-    // 경로 탈출 방지
-    const safe = normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
-    const filePath = join(ROOT, safe);
-    if (!filePath.startsWith(ROOT)) { res.writeHead(403); return res.end('Forbidden'); }
+    const filePath = resolveStaticPath(ROOT, req.url || '/');
+    if (!filePath) { res.writeHead(403); return res.end('Forbidden'); }
     const data = await readFile(filePath);
     res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
     res.end(data);
@@ -42,6 +59,10 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`\n  오행 사주 분석 → http://localhost:${PORT}/\n`);
-});
+const entry = process.argv[1];
+const launchedDirectly = !!entry && import.meta.url === pathToFileURL(resolve(entry)).href;
+if (launchedDirectly) {
+  server.listen(PORT, () => {
+    console.log(`\n  오행 사주 분석 → http://localhost:${PORT}/\n`);
+  });
+}

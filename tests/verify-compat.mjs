@@ -13,6 +13,8 @@ let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; console.log(`✓ ${msg}`); } else { fail++; console.log(`✗ 실패 ${msg}`); } };
 
 await page.goto('http://localhost:4476/#/saju', { waitUntil: 'networkidle' });
+ok(await page.locator('#leap-wrap').isHidden(), '솔로 양력: 윤달 체크가 화면에 없음');
+ok(await page.locator('#person-1 .person-head').isHidden(), '솔로: 첫 사람 라벨이 화면에 없음');
 
 // ── 1) 솔로 모드: 이론 계층 카드 ──────────────────────────
 await page.fill('#in-name', '홍길동');
@@ -61,6 +63,7 @@ const p1HeadVisible = await page.$eval('#person-1 .person-head', (el) => !el.hid
 ok(partnerVisible, '궁합 모드: 두 번째 사람 입력 노출');
 ok(ctaText.trim() === '궁합 보기', `궁합 모드: CTA 문구 "${ctaText.trim()}"`);
 ok(p1HeadVisible, '궁합 모드: 첫 번째 사람 라벨 노출');
+ok(await page.locator('#person-1 .person-head').isVisible(), '궁합 모드: 첫 사람 라벨이 화면에 보임');
 
 // ── 3) 두 사람 입력 → 궁합 결과 ───────────────────────────
 await page.fill('#in-name', '민수');
@@ -117,6 +120,8 @@ const leap1Hidden = await page.$eval('#leap-wrap', (el) => el.hidden);
 const leap2Shown = await page.$eval('#leap-wrap-2', (el) => !el.hidden);
 ok(leap1Hidden, '사람1은 양력이라 윤달 체크 숨김 유지');
 ok(leap2Shown, '사람2 음력 1993년 3월 → 윤달 옵션 노출 (윤3월)');
+ok(await page.locator('#leap-wrap').isHidden(), '사람1 윤달 체크는 화면에서도 숨음');
+ok(await page.locator('#leap-wrap-2').isVisible(), '사람2 윤달 체크는 화면에 보임');
 await page.selectOption('#in-day-2', '15');
 await page.click('#btn-submit');
 await page.waitForTimeout(1000);

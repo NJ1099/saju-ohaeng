@@ -152,6 +152,33 @@ const mapLink = (page, withGuest) => page.evaluate((g) => {
   await host.context().close();
 }
 
+// ── 3b) 귀인 지도 날짜 — 윤달·말일 ────────────────────────────────
+{
+  console.log('\n[3b] 귀인 지도 날짜 가드');
+  const page = await newPage();
+  await page.goto(`${BASE}/#/map`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('#gm-h-year', { timeout: 5000 });
+  const yearNow = new Date().getFullYear();
+  const years = await page.locator('#gm-h-year option').evaluateAll((els) => els.map((e) => e.value));
+  ok('연도 하한 1900', years.includes('1900'));
+  ok('연도 상한은 다음 해', years.includes(String(yearNow + 1)));
+  ok('고정 상한 2026만 있지 않음', years.includes(String(yearNow + 1)) && years[0] === String(yearNow + 1));
+
+  await page.selectOption('#gm-h-year', '1990');
+  await page.selectOption('#gm-h-month', '2');
+  eq('1990년 2월은 28일', await page.locator('#gm-h-day option').count(), 28);
+
+  await page.locator('#gm-h-cal .seg[data-val="lunar"]').click();
+  await page.selectOption('#gm-h-year', '2020');
+  await page.selectOption('#gm-h-month', '5');
+  ok('2020년 음력 5월은 윤달 아님', await page.locator('#gm-h-leap-wrap').isHidden());
+  await page.selectOption('#gm-h-month', '4');
+  ok('2020년 음력 4월은 윤달 옵션', await page.locator('#gm-h-leap-wrap').isVisible());
+  await page.check('#gm-h-leap');
+  eq('2020 윤4월은 29일', await page.locator('#gm-h-day option').count(), 29);
+  await page.context().close();
+}
+
 // ── 4) 손상된 지도 링크 방어 ───────────────────────────────
 {
   console.log('\n[4] 손상 링크 방어');
